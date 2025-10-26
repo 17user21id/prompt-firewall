@@ -44,8 +44,8 @@ export default function LoginForm() {
   return (
     <div className="card max-w-md mx-auto">
       <div className="text-center mb-6">
-        <h2 className="text-2xl font-bold text-gray-900">Admin Login</h2>
-        <p className="text-gray-600 mt-2">Sign in to access the admin console</p>
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Admin Login</h2>
+        <p className="text-gray-600 dark:text-gray-300 mt-2">Sign in to access the admin console</p>
       </div>
       
       <form onSubmit={handleSubmit} className="space-y-6" aria-label="Tenant Login Form">
@@ -101,9 +101,9 @@ export default function LoginForm() {
       </form>
       
       <div className="mt-6 text-center">
-        <p className="text-sm text-gray-600">
+        <p className="text-sm text-gray-600 dark:text-gray-300">
           Don't have a tenant? 
-          <a href="/admin/tenants" className="text-primary-600 hover:text-primary-700 ml-1 font-medium">
+          <a href="/admin/tenants" className="text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 ml-1 font-medium">
             Create one here
           </a>
         </p>

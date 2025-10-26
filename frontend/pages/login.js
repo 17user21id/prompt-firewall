@@ -1,13 +1,12 @@
 import { useState } from 'react';
 import { useRouter } from 'next/router';
 import toast from 'react-hot-toast';
-import TenantForm from '../components/TenantForm';
 
 export default function Login() {
   const router = useRouter();
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({
-    tenantName: '',
+    name: '',
     password: '',
   });
   const [loading, setLoading] = useState(false);
@@ -15,8 +14,8 @@ export default function Login() {
   const handleLogin = async (e) => {
     e.preventDefault();
     
-    if (!formData.tenantName || !formData.password) {
-      toast.error('Please enter tenant name and password');
+    if (!formData.name.trim() || !formData.password.trim()) {
+      toast.error('Please fill all fields');
       return;
     }
     
@@ -28,7 +27,7 @@ export default function Login() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          name: formData.tenantName,
+          name: formData.name,
           password: formData.password,
         }),
       });
@@ -55,7 +54,20 @@ export default function Login() {
     }
   };
 
-  const handleCreateTenant = async ({ name, password }) => {
+  const handleCreateTenant = async (e) => {
+    e.preventDefault();
+    
+    if (!formData.name.trim() || !formData.password.trim()) {
+      toast.error('Please fill all fields');
+      return;
+    }
+    
+    if (formData.password.length < 8) {
+      toast.error('Password must be at least 8 characters long');
+      return;
+    }
+    
+    setLoading(true);
     try {
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/v1/tenants`, {
         method: 'POST',
@@ -63,8 +75,8 @@ export default function Login() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          name: name,
-          password: password,
+          name: formData.name,
+          password: formData.password,
           metadata: {}
         }),
       });
@@ -82,40 +94,44 @@ export default function Login() {
       sessionStorage.setItem('tenant_name', data.name);
       
       toast.success('Tenant created successfully!');
-      setShowForm(false);
       router.push('/dashboard');
     } catch (error) {
       console.error('Error creating tenant:', error);
       toast.error(`Error creating tenant: ${error.message}`);
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
     <div className="container">
-      <div className="max-w-6xl mx-auto">
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">Prompt Firewall</h1>
-            <p className="text-gray-600 mt-2">Login or create a tenant account to test prompts</p>
-          </div>
+      <div className="max-w-md mx-auto">
+        <div className="text-center mb-8">
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Prompt Firewall</h1>
+          <p className="text-gray-600 dark:text-gray-300 mt-2">
+            {!showForm ? 'Login to access your tenant' : 'Create a new tenant account'}
+          </p>
         </div>
 
         {/* Login Form */}
         {!showForm && (
-          <div className="card mb-8">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">Login</h2>
+          <div className="card">
+            <div className="text-center mb-6">
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Login</h2>
+              <p className="text-gray-600 dark:text-gray-300 mt-2">Sign in to your tenant account</p>
+            </div>
             <form onSubmit={handleLogin} className="space-y-6" aria-label="Login Form">
               <div>
-                <label htmlFor="tenantName" className="form-label">
+                <label htmlFor="name" className="form-label">
                   Tenant Name
                 </label>
                 <input
-                  id="tenantName"
+                  id="name"
                   type="text"
-                  value={formData.tenantName}
-                  onChange={(e) => setFormData({ ...formData, tenantName: e.target.value })}
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   className="input-field"
-                  placeholder="Enter your tenant name"
+                  placeholder="Enter tenant name"
                   aria-required="true"
                   disabled={loading}
                 />
@@ -131,7 +147,7 @@ export default function Login() {
                   value={formData.password}
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                   className="input-field"
-                  placeholder="Enter your password"
+                  placeholder="Enter password"
                   aria-required="true"
                   disabled={loading}
                 />
@@ -141,57 +157,114 @@ export default function Login() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="btn-primary flex items-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                  aria-label="Sign In"
+                  className="btn-primary w-full flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  aria-label="Login"
                 >
                   {loading ? (
                     <>
                       <div className="spinner"></div>
-                      <span>Signing in...</span>
+                      <span>Logging in...</span>
                     </>
                   ) : (
-                    <span>Sign In</span>
+                    <span>Login</span>
                   )}
                 </button>
               </div>
             </form>
+            
+            <div className="mt-6 text-center">
+              <p className="text-sm text-gray-600 dark:text-gray-300">
+                Don't have a tenant?{' '}
+                <button
+                  onClick={() => {
+                    setShowForm(true);
+                    setFormData({ name: '', password: '' });
+                  }}
+                  className="text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 font-medium"
+                >
+                  Create one here
+                </button>
+              </p>
+            </div>
           </div>
         )}
 
         {/* Create Tenant Form */}
         {showForm && (
-          <div className="mb-8 card">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">Create New Tenant</h2>
-            <TenantForm onSubmit={handleCreateTenant} />
-            <button 
-              onClick={() => setShowForm(false)}
-              className="btn-secondary mt-4"
-            >
-              Cancel
-            </button>
-          </div>
-        )}
-
-        {/* Toggle between Login and Create */}
-        {!showForm ? (
-          <div className="mb-8 text-center">
-            <p className="text-gray-600 mb-4">Don't have an account?</p>
-            <button 
-              onClick={() => setShowForm(true)}
-              className="btn-primary"
-            >
-              + Create New Tenant Account
-            </button>
-          </div>
-        ) : (
-          <div className="mb-8 text-center">
-            <p className="text-gray-600 mb-4">Already have an account?</p>
-            <button 
-              onClick={() => setShowForm(false)}
-              className="btn-secondary"
-            >
-              ← Back to Login
-            </button>
+          <div className="card">
+            <div className="text-center mb-6">
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Create Tenant</h2>
+              <p className="text-gray-600 dark:text-gray-300 mt-2">Register a new tenant account</p>
+            </div>
+            <form onSubmit={handleCreateTenant} className="space-y-6" aria-label="Tenant Creation Form">
+              <div>
+                <label htmlFor="name" className="form-label">
+                  Tenant Name
+                </label>
+                <input
+                  id="name"
+                  type="text"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  className="input-field"
+                  placeholder="Enter tenant name (e.g., Acme Corp)"
+                  aria-required="true"
+                  disabled={loading}
+                />
+              </div>
+              
+              <div>
+                <label htmlFor="password" className="form-label">
+                  Password
+                </label>
+                <input
+                  id="password"
+                  type="password"
+                  value={formData.password}
+                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  className="input-field"
+                  placeholder="Enter secure password (min 8 characters)"
+                  aria-required="true"
+                  disabled={loading}
+                />
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                  Password must be at least 8 characters long and will be securely hashed.
+                </p>
+              </div>
+              
+              <div className="flex justify-end">
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="btn-primary w-full flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  aria-label="Create Tenant"
+                >
+                  {loading ? (
+                    <>
+                      <div className="spinner"></div>
+                      <span>Creating...</span>
+                    </>
+                  ) : (
+                    <span>Create Tenant</span>
+                  )}
+                </button>
+              </div>
+            </form>
+            
+            <div className="mt-6 text-center">
+              <p className="text-sm text-gray-600 dark:text-gray-300">
+                Already have a tenant?{' '}
+                <button
+                  onClick={() => {
+                    setShowForm(false);
+                    setFormData({ name: '', password: '' });
+                  }}
+                  className="text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 font-medium"
+                >
+                  Login here
+                </button>
+              </p>
+            </div>
           </div>
         )}
       </div>

@@ -1,15 +1,38 @@
 import { useSession, signOut } from 'next-auth/react';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 export default function Layout({ children }) {
   const { data: session, status } = useSession();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [darkMode, setDarkMode] = useState(false);
+
+  useEffect(() => {
+    // Check for saved theme preference or default to light mode
+    const isDark = localStorage.getItem('darkMode') === 'true';
+    setDarkMode(isDark);
+    if (isDark) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, []);
+
+  const toggleDarkMode = () => {
+    const newDarkMode = !darkMode;
+    setDarkMode(newDarkMode);
+    localStorage.setItem('darkMode', newDarkMode);
+    if (newDarkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       {/* Navigation */}
-      <nav className="bg-primary-600 shadow-lg">
+      <nav className="bg-primary-600 dark:bg-primary-800 shadow-lg">
         <div className="container">
           <div className="flex justify-between items-center h-16">
             {/* Logo */}
@@ -56,6 +79,23 @@ export default function Layout({ children }) {
                   Admin Login
                 </Link>
               )}
+              
+              {/* Dark Mode Toggle */}
+              <button
+                onClick={toggleDarkMode}
+                className="p-2 rounded-lg text-white hover:bg-primary-700 dark:hover:bg-primary-900 transition-colors duration-200"
+                aria-label="Toggle dark mode"
+              >
+                {darkMode ? (
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+                  </svg>
+                ) : (
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+                  </svg>
+                )}
+              </button>
             </div>
 
             {/* Mobile menu button */}
@@ -78,7 +118,7 @@ export default function Layout({ children }) {
 
           {/* Mobile Navigation */}
           {mobileMenuOpen && (
-            <div className="md:hidden bg-primary-700 border-t border-primary-500">
+            <div className="md:hidden bg-primary-700 dark:bg-primary-800 border-t border-primary-500">
               <div className="px-2 pt-2 pb-3 space-y-1">
                 <Link 
                   href="/" 
@@ -120,6 +160,31 @@ export default function Layout({ children }) {
                     Admin Login
                   </Link>
                 )}
+                <div className="px-3 py-2 border-t border-primary-500">
+                  <button
+                    onClick={() => {
+                      toggleDarkMode();
+                      setMobileMenuOpen(false);
+                    }}
+                    className="flex items-center space-x-2 text-white hover:text-primary-200 transition-colors duration-200 w-full"
+                  >
+                    {darkMode ? (
+                      <>
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+                        </svg>
+                        <span>Light Mode</span>
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+                        </svg>
+                        <span>Dark Mode</span>
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
             </div>
           )}
@@ -132,28 +197,28 @@ export default function Layout({ children }) {
       </main>
 
       {/* Footer */}
-      <footer className="bg-white border-t border-gray-200 mt-auto">
+      <footer className="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 mt-auto">
         <div className="container py-6">
           <div className="flex flex-col md:flex-row justify-between items-center">
-            <div className="text-gray-600 text-sm">
+            <div className="text-gray-600 dark:text-gray-400 text-sm">
               © 2024 Prompt Firewall MVP. Built for AI Security.
             </div>
             <div className="flex space-x-6 mt-4 md:mt-0">
               <a 
                 href="/docs" 
-                className="text-gray-600 hover:text-primary-600 text-sm transition-colors duration-200"
+                className="text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 text-sm transition-colors duration-200"
               >
                 Documentation
               </a>
               <a 
                 href="/api-docs" 
-                className="text-gray-600 hover:text-primary-600 text-sm transition-colors duration-200"
+                className="text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 text-sm transition-colors duration-200"
               >
                 API Reference
               </a>
               <a 
                 href="/health" 
-                className="text-gray-600 hover:text-primary-600 text-sm transition-colors duration-200"
+                className="text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 text-sm transition-colors duration-200"
               >
                 System Status
               </a>
