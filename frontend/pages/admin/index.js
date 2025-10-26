@@ -1,7 +1,6 @@
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
-import LoginForm from '../../components/LoginForm';
 import { useEffect } from 'react';
 
 export default function AdminDashboard() {
@@ -10,17 +9,21 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     if (status === 'authenticated' && session) {
-      router.push('/admin/dashboard');
+      // Already authenticated, show dashboard
+      return;
+    } else if (status === 'unauthenticated') {
+      // Not authenticated, redirect to login
+      router.push('/login');
     }
   }, [status, session, router]);
 
-  if (status === 'loading') {
+  if (status === 'loading' || status === 'unauthenticated') {
     return (
       <div className="container">
         <div className="flex items-center justify-center min-h-screen">
           <div className="flex items-center space-x-3">
             <div className="spinner"></div>
-            <span className="text-gray-600">Loading...</span>
+            <span className="text-gray-600 dark:text-gray-300">Loading...</span>
           </div>
         </div>
       </div>
@@ -131,15 +134,6 @@ export default function AdminDashboard() {
     );
   }
 
-  return (
-    <div className="container">
-      <div className="max-w-md mx-auto">
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Admin Console</h1>
-          <p className="text-gray-600 dark:text-gray-300">Sign in to access the admin dashboard</p>
-        </div>
-        <LoginForm />
-      </div>
-    </div>
-  );
+  // This shouldn't be reached due to the check above, but just in case
+  return null;
 }

@@ -73,10 +73,10 @@ export default function Layout({ children }) {
                 </>
               ) : (
                 <Link 
-                  href="/admin" 
+                  href="/login" 
                   className="text-white hover:text-primary-200 transition-colors duration-200 font-medium"
                 >
-                  Admin Login
+                  Login
                 </Link>
               )}
               
@@ -153,11 +153,11 @@ export default function Layout({ children }) {
                   </>
                 ) : (
                   <Link 
-                    href="/admin" 
+                    href="/login" 
                     className="block px-3 py-2 text-white hover:text-primary-200 transition-colors duration-200"
                     onClick={() => setMobileMenuOpen(false)}
                   >
-                    Admin Login
+                    Login
                   </Link>
                 )}
                 <div className="px-3 py-2 border-t border-primary-500">
