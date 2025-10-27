@@ -7,7 +7,7 @@ from typing import List
 
 from ..store.firestore.rules import RuleStore
 from ..firewall.rules import FirewallRules
-from ..common.auth import validate_tenant_access, log_auth_event
+from ..common.auth import validate_tenant_access, log_auth_event, get_current_tenant
 from ..models.schemas import RuleCreate, RuleUpdate, RuleResponse, RuleStats, RulesQueryRequest
 
 # Initialize stores
@@ -18,29 +18,33 @@ router = APIRouter()
 
 @router.get("/rules", response_model=List[RuleResponse])
 async def get_rules(
-    tenant_id: str = Depends(validate_tenant_access),
-    request: RulesQueryRequest = Depends()
+    current_tenant: str = Depends(get_current_tenant),
+    rule_type: str = None,
+    action: str = None,
+    severity: str = None,
+    enabled: bool = None,
+    limit: int = 100
 ):
-    """Get rules for a tenant."""
+    """Get rules for the current tenant."""
     filters = {}
-    if request.type:
-        filters["type"] = request.type
-    if request.action:
-        filters["action"] = request.action
-    if request.severity:
-        filters["severity"] = request.severity
-    if request.enabled is not None:
-        filters["enabled"] = request.enabled
+    if rule_type:
+        filters["type"] = rule_type
+    if action:
+        filters["action"] = action
+    if severity:
+        filters["severity"] = severity
+    if enabled is not None:
+        filters["enabled"] = enabled
     
-    rules = rule_store.query_by_tenant(tenant_id, filters)
-    return [RuleResponse(**rule) for rule in rules]
+    rules = rule_store.query_by_tenant(current_tenant, filters)
+    return [RuleResponse(**rule) for rule in rules[:limit]]
 
 @router.post("/rules", response_model=RuleResponse)
 async def create_rule(
     request: RuleCreate,
-    tenant_id: str = Depends(validate_tenant_access)
+    current_tenant: str = Depends(get_current_tenant)
 ):
-    """Create a new rule for a tenant."""
+    """Create a new rule for the current tenant."""
     try:
         # Validate rule
         validation_result = rules_engine.validate_rule(request.dict())
@@ -50,11 +54,11 @@ async def create_rule(
                 detail=f"Invalid rule: {', '.join(validation_result['errors'])}"
             )
         
-        rule_id = rule_store.save(tenant_id, request.dict())
-        rule = rule_store.get_by_tenant(tenant_id, rule_id)
+        rule_id = rule_store.save(current_tenant, request.dict())
+        rule = rule_store.get_by_tenant(current_tenant, rule_id)
         
         # Log rule creation
-        log_auth_event(tenant_id, "rule_created", {
+        log_auth_event(current_tenant, "rule_created", {
             "rule_id": rule_id,
             "rule_type": request.type,
             "action": request.action
@@ -74,7 +78,7 @@ async def create_rule(
 async def update_rule(
     rule_id: str,
     request: RuleUpdate,
-    tenant_id: str = Depends(validate_tenant_access)
+    current_tenant: str = Depends(get_current_tenant)
 ):
     """Update a rule."""
     try:
@@ -87,17 +91,17 @@ async def update_rule(
                     detail=f"Invalid rule: {', '.join(validation_result['errors'])}"
                 )
         
-        success = rule_store.update_by_tenant(tenant_id, rule_id, request.dict())
+        success = rule_store.update_by_tenant(current_tenant, rule_id, request.dict())
         if not success:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Rule not found"
             )
         
-        rule = rule_store.get_by_tenant(tenant_id, rule_id)
+        rule = rule_store.get_by_tenant(current_tenant, rule_id)
         
         # Log rule update
-        log_auth_event(tenant_id, "rule_updated", {
+        log_auth_event(current_tenant, "rule_updated", {
             "rule_id": rule_id,
             "updated_fields": list(request.dict(exclude_unset=True).keys())
         })
@@ -115,11 +119,11 @@ async def update_rule(
 @router.delete("/rules/{rule_id}")
 async def delete_rule(
     rule_id: str,
-    tenant_id: str = Depends(validate_tenant_access)
+    current_tenant: str = Depends(get_current_tenant)
 ):
     """Delete a rule."""
     try:
-        success = rule_store.delete_by_tenant(tenant_id, rule_id)
+        success = rule_store.delete_by_tenant(current_tenant, rule_id)
         if not success:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -127,7 +131,7 @@ async def delete_rule(
             )
         
         # Log rule deletion
-        log_auth_event(tenant_id, "rule_deleted", {
+        log_auth_event(current_tenant, "rule_deleted", {
             "rule_id": rule_id
         })
         
@@ -142,8 +146,8 @@ async def delete_rule(
         )
 
 @router.get("/rules/stats", response_model=RuleStats)
-async def get_rule_stats(tenant_id: str = Depends(validate_tenant_access)):
-    """Get rule statistics for a tenant."""
-    stats = rule_store.get_rule_stats(tenant_id)
+async def get_rule_stats(current_tenant: str = Depends(get_current_tenant)):
+    """Get rule statistics for the current tenant."""
+    stats = rule_store.get_rule_stats(current_tenant)
     return RuleStats(**stats)
 

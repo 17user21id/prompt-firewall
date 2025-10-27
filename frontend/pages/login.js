@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/router';
 import toast from 'react-hot-toast';
+import { setSession } from '../lib/session';
 
 export default function Login() {
   const router = useRouter();
@@ -39,10 +40,8 @@ export default function Login() {
       
       const data = await response.json();
       
-      // Store credentials in sessionStorage
-      sessionStorage.setItem('tenant_id', data.tenant_id);
-      sessionStorage.setItem('api_key', data.api_key);
-      sessionStorage.setItem('tenant_name', data.name);
+      // Store credentials with 1-hour timeout
+      setSession(data.tenant_id, data.api_key, data.name);
       
       toast.success('Login successful!');
       router.push('/dashboard');
@@ -88,10 +87,8 @@ export default function Login() {
       
       const data = await response.json();
       
-      // Store credentials in sessionStorage
-      sessionStorage.setItem('tenant_id', data.tenant_id);
-      sessionStorage.setItem('api_key', data.api_key);
-      sessionStorage.setItem('tenant_name', data.name);
+      // Store credentials with 1-hour timeout
+      setSession(data.tenant_id, data.api_key, data.name);
       
       toast.success('Tenant created successfully!');
       router.push('/dashboard');

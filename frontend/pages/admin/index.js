@@ -76,6 +76,16 @@ export default function AdminDashboard() {
               </div>
             </Link>
 
+            <Link href="/admin/prompts" className="card hover:shadow-md transition-shadow duration-200">
+              <div className="text-center">
+                <div className="text-4xl mb-3">📝</div>
+                <h3 className="font-semibold text-gray-900 dark:text-white mb-2">Prompt History</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  View and filter all processed prompts with risk details.
+                </p>
+              </div>
+            </Link>
+
             <Link href="/admin/analytics" className="card hover:shadow-md transition-shadow duration-200">
               <div className="text-center">
                 <div className="text-4xl mb-3">📊</div>

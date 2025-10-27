@@ -42,7 +42,7 @@ export default function Logs() {
         <div className="flex items-center justify-center py-12">
           <div className="flex items-center space-x-3">
             <div className="spinner"></div>
-            <span className="text-gray-600">Loading...</span>
+            <span className="text-gray-600 dark:text-gray-300">Loading...</span>
           </div>
         </div>
       </div>
@@ -53,8 +53,8 @@ export default function Logs() {
     return (
       <div className="container">
         <div className="text-center py-12">
-          <h1 className="text-2xl font-bold text-gray-900 mb-4">Access Denied</h1>
-          <p className="text-gray-600 mb-6">Please log in to access the admin console.</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Access Denied</h1>
+          <p className="text-gray-600 dark:text-gray-300 mb-6">Please log in to access the admin console.</p>
           <Link href="/admin" className="btn-primary">
             Go to Login
           </Link>
@@ -68,8 +68,8 @@ export default function Logs() {
       <div className="max-w-7xl mx-auto">
         <div className="flex items-center justify-between mb-8">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Security Logs</h1>
-            <p className="text-gray-600 mt-2">Monitor security events and audit trails</p>
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Security Logs</h1>
+            <p className="text-gray-600 dark:text-gray-300 mt-2">Monitor security events and audit trails</p>
           </div>
           <Link href="/admin" className="btn-secondary">
             ← Back to Dashboard

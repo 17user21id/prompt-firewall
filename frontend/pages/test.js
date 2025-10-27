@@ -3,6 +3,7 @@ import { useRouter } from 'next/router';
 import PromptForm from '../components/PromptForm';
 import ResultDisplay from '../components/ResultDisplay';
 import toast from 'react-hot-toast';
+import { getSession, clearSession } from '../lib/session';
 
 export default function TestPage() {
   const router = useRouter();
@@ -11,18 +12,17 @@ export default function TestPage() {
   const [tenantInfo, setTenantInfo] = useState(null);
 
   useEffect(() => {
-    // Check if user is logged in
-    const tenantId = sessionStorage.getItem('tenant_id');
-    const apiKey = sessionStorage.getItem('api_key');
-    const tenantName = sessionStorage.getItem('tenant_name');
+    // Check if user is logged in and session is valid
+    const session = getSession();
     
-    if (!tenantId || !apiKey) {
+    if (!session) {
+      toast.error('Session expired. Please login again.');
       router.push('/login');
       return;
     }
     
-    setTenantInfo({ tenant_id: tenantId, api_key: apiKey, name: tenantName });
-  }, []);
+    setTenantInfo({ tenant_id: session.tenantId, api_key: session.apiKey, name: session.tenantName });
+  }, [router]);
 
   const handleSubmit = async (prompt) => {
     if (!tenantInfo) {
@@ -94,9 +94,7 @@ export default function TestPage() {
               </a>
               <button
                 onClick={() => {
-                  sessionStorage.removeItem('tenant_id');
-                  sessionStorage.removeItem('api_key');
-                  sessionStorage.removeItem('tenant_name');
+                  clearSession();
                   router.push('/login');
                 }}
                 className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700"

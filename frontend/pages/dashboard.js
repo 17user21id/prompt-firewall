@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import toast from 'react-hot-toast';
 import Link from 'next/link';
+import { getSession, clearSession } from '../lib/session';
 
 export default function Dashboard() {
   const router = useRouter();
@@ -17,19 +18,18 @@ export default function Dashboard() {
   });
 
   useEffect(() => {
-    // Check if user is logged in
-    const tenantId = sessionStorage.getItem('tenant_id');
-    const apiKey = sessionStorage.getItem('api_key');
-    const tenantName = sessionStorage.getItem('tenant_name');
+    // Check if user is logged in and session is valid
+    const session = getSession();
     
-    if (!tenantId || !apiKey) {
+    if (!session) {
+      toast.error('Session expired. Please login again.');
       router.push('/login');
       return;
     }
     
-    setTenantInfo({ tenant_id: tenantId, api_key: apiKey, name: tenantName });
-    loadData(tenantId, apiKey);
-  }, []);
+    setTenantInfo({ tenant_id: session.tenantId, api_key: session.apiKey, name: session.tenantName });
+    loadData(session.tenantId, session.apiKey);
+  }, [router]);
 
   const loadData = async (tenantId, apiKey) => {
     setLoading(true);
@@ -88,9 +88,7 @@ export default function Dashboard() {
   };
 
   const handleLogout = () => {
-    sessionStorage.removeItem('tenant_id');
-    sessionStorage.removeItem('api_key');
-    sessionStorage.removeItem('tenant_name');
+    clearSession();
     router.push('/login');
   };
 

@@ -85,7 +85,7 @@ export default function LogTable({ logs = [], loading = false }) {
         <div className="flex items-center justify-center py-12">
           <div className="flex items-center space-x-3">
             <div className="spinner"></div>
-            <span className="text-gray-600">Loading logs...</span>
+            <span className="text-gray-600 dark:text-gray-300">Loading logs...</span>
           </div>
         </div>
       </div>
@@ -160,7 +160,7 @@ export default function LogTable({ logs = [], loading = false }) {
           </div>
         </div>
         
-        <div className="mt-4 text-sm text-gray-600">
+        <div className="mt-4 text-sm text-gray-600 dark:text-gray-300">
           Showing {filteredLogs.length} of {logs.length} logs
         </div>
       </div>
@@ -191,7 +191,7 @@ export default function LogTable({ logs = [], loading = false }) {
             <tbody className="bg-white divide-y divide-gray-200">
               {filteredLogs.length === 0 ? (
                 <tr>
-                  <td colSpan="5" className="px-6 py-12 text-center text-gray-500">
+                  <td colSpan="5" className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
                     No logs found matching the current filters.
                   </td>
                 </tr>

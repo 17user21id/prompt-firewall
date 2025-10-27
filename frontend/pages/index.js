@@ -1,16 +1,16 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/router';
+import { getSession } from '../lib/session';
 
 export default function Home() {
   const router = useRouter();
 
   useEffect(() => {
-    // Check if user is logged in
-    const tenantId = sessionStorage.getItem('tenant_id');
-    const apiKey = sessionStorage.getItem('api_key');
+    // Check if user is logged in and session is valid
+    const session = getSession();
     
-    if (!tenantId || !apiKey) {
-      // Not logged in, redirect to login page
+    if (!session) {
+      // Session expired or not logged in, redirect to login page
       router.push('/login');
     } else {
       // Logged in, redirect to test page

@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, status
 from typing import List
 
 from ..store.firestore.logs import LogStore
-from ..common.auth import validate_tenant_access
+from ..common.auth import validate_tenant_access, get_current_tenant
 from ..models.schemas import LogResponse, LogStats, LogsQueryRequest
 
 # Initialize stores
@@ -16,31 +16,40 @@ router = APIRouter()
 
 @router.get("/logs", response_model=List[LogResponse])
 async def get_logs(
-    tenant_id: str = Depends(validate_tenant_access),
-    request: LogsQueryRequest = Depends()
+    current_tenant: str = Depends(get_current_tenant),
+    event_type: str = None,
+    date_from: str = None,
+    date_to: str = None,
+    user_id: str = None,
+    prompt_id: str = None,
+    limit: int = 100
 ):
-    """Get logs for a tenant."""
+    """Get logs for the current tenant."""
     filters = {}
-    if request.event_type:
-        filters["event_type"] = request.event_type
-    if request.start_date:
-        filters["start_date"] = request.start_date
-    if request.end_date:
-        filters["end_date"] = request.end_date
+    if event_type:
+        filters["event_type"] = event_type
+    if date_from:
+        filters["start_date"] = date_from
+    if date_to:
+        filters["end_date"] = date_to
+    if user_id:
+        filters["user_id"] = user_id
+    if prompt_id:
+        filters["prompt_id"] = prompt_id
     
-    logs = log_store.query_by_tenant(tenant_id, filters)
-    return [LogResponse(**log) for log in logs]
+    logs = log_store.query_by_tenant(current_tenant, filters)
+    return [LogResponse(**log) for log in logs[:limit]]
 
 @router.get("/logs/stats", response_model=LogStats)
-async def get_log_stats(tenant_id: str = Depends(validate_tenant_access)):
-    """Get log statistics for a tenant."""
-    stats = log_store.get_log_stats(tenant_id)
+async def get_log_stats(current_tenant: str = Depends(get_current_tenant)):
+    """Get log statistics for the current tenant."""
+    stats = log_store.get_log_stats(current_tenant)
     return LogStats(**stats)
 
 @router.get("/logs/export")
-async def export_logs(tenant_id: str = Depends(validate_tenant_access)):
+async def export_logs(current_tenant: str = Depends(get_current_tenant)):
     """Export logs as CSV."""
-    logs = log_store.query_by_tenant(tenant_id)
+    logs = log_store.query_by_tenant(current_tenant)
     # CSV export logic here
     return {"message": "Log export feature coming soon"}
 
