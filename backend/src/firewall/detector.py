@@ -1,5 +1,5 @@
 """
-FirewallDetector - Core detection engine for PII and prompt injection.
+FirewallDetector - Core detection engine for PII, PHI, PCI, and prompt injection.
 Combines multiple detection methods for comprehensive security analysis.
 """
 
@@ -11,6 +11,11 @@ from .injection_detection import (
     calculate_anomaly_score,
     call_openai_to_detect_pi,
     render_prompt_for_pi_detection
+)
+from .detection_patterns import (
+    DetectionPatternRegistry,
+    RiskCategory,
+    categorize_risk_type
 )
 # HybridFirewallDetector will be imported when needed to avoid circular imports
 from .openai_detector import OpenAIFirewallDetector
@@ -183,22 +188,23 @@ class FirewallDetector:
         return risks
 
     def detect(self, prompt: str, custom_rules: List[Dict] = None, use_openai: bool = False) -> Dict[str, Any]:
-        """Comprehensive detection combining all methods."""
+        """Comprehensive detection combining all methods - supports PII, PHI, PCI, and Prompt Injection."""
         if not prompt or len(prompt.strip()) == 0:
             return {
                 "risks": [],
                 "anomaly_score": 0.0,
                 "decision": "allow",
-                "confidence": 0.0
+                "confidence": 0.0,
+                "risk_categories": {}
             }
         
         all_risks = []
         
-        # Detect PII
-        pii_risks = self.detect_pii(prompt)
-        all_risks.extend(pii_risks)
+        # Use new modular detection patterns for all categories
+        modular_risks = DetectionPatternRegistry.detect_all(prompt)
+        all_risks.extend(modular_risks)
         
-        # Detect prompt injection
+        # Detect prompt injection using heuristics/OpenAI
         injection_risks = self.detect_injection_openai(prompt) if use_openai else self.detect_injection_heuristic(prompt)
         all_risks.extend(injection_risks)
         
@@ -208,8 +214,11 @@ class FirewallDetector:
             all_risks.extend(custom_risks)
         
         # Calculate anomaly score
-        anomaly_score = calculate_anomaly_score(prompt, pii_risks, 
+        anomaly_score = calculate_anomaly_score(prompt, all_risks, 
                                                injection_risks[0].get("score", 0.0) if injection_risks else 0.0)
+        
+        # Categorize risks by main category (PII, PHI, PCI, PROMPT_INJECTION)
+        risk_categories = self._categorize_risks(all_risks)
         
         # Determine overall decision
         decision = self._determine_decision(all_risks)
@@ -217,15 +226,59 @@ class FirewallDetector:
         # Calculate overall confidence
         confidence = self._calculate_confidence(all_risks)
         
+        # Calculate overall severity
+        overall_severity = self._calculate_overall_severity(all_risks)
+        
+        # Get unique risk categories list
+        detected_categories = self._get_detected_categories(all_risks)
+        
         return {
             "risks": all_risks,
             "anomaly_score": anomaly_score,
             "decision": decision,
             "confidence": confidence,
             "total_risks": len(all_risks),
+            "risk_categories": risk_categories,
+            "detected_categories": detected_categories,
+            "severity": overall_severity,
             "high_severity_risks": len([r for r in all_risks if r.get("severity") == "high"]),
             "medium_severity_risks": len([r for r in all_risks if r.get("severity") == "medium"]),
             "low_severity_risks": len([r for r in all_risks if r.get("severity") == "low"])
+        }
+    
+    def _categorize_risks(self, risks: List[Dict]) -> Dict[str, Any]:
+        """Categorize risks by main category"""
+        categories = {
+            RiskCategory.PROMPT_INJECTION.value: [],
+            RiskCategory.PII.value: [],
+            RiskCategory.PHI.value: [],
+            RiskCategory.PCI.value: []
+        }
+        
+        for risk in risks:
+            risk_type = risk.get("type", "")
+            category = categorize_risk_type(risk_type)
+            if category in categories:
+                categories[category].append(risk)
+        
+        # Return counts and details
+        return {
+            "PROMPT_INJECTION": {
+                "count": len(categories[RiskCategory.PROMPT_INJECTION.value]),
+                "risks": categories[RiskCategory.PROMPT_INJECTION.value]
+            },
+            "PII": {
+                "count": len(categories[RiskCategory.PII.value]),
+                "risks": categories[RiskCategory.PII.value]
+            },
+            "PHI": {
+                "count": len(categories[RiskCategory.PHI.value]),
+                "risks": categories[RiskCategory.PHI.value]
+            },
+            "PCI": {
+                "count": len(categories[RiskCategory.PCI.value]),
+                "risks": categories[RiskCategory.PCI.value]
+            }
         }
 
     def _determine_decision(self, risks: List[Dict]) -> str:
@@ -257,6 +310,40 @@ class FirewallDetector:
         
         total_confidence = sum(r.get("confidence", 0.5) for r in risks)
         return min(total_confidence / len(risks), 1.0)
+    
+    def _calculate_overall_severity(self, risks: List[Dict]) -> str:
+        """Calculate overall severity based on detected risks."""
+        if not risks:
+            return "low"
+        
+        # Get all severities
+        severities = [r.get("severity", "low") for r in risks]
+        
+        # Count severities
+        severity_counts = {"critical": 0, "high": 0, "medium": 0, "low": 0}
+        for severity in severities:
+            if severity in severity_counts:
+                severity_counts[severity] += 1
+        
+        # Determine overall severity
+        # Critical takes precedence
+        if severity_counts["critical"] > 0:
+            return "critical"
+        elif severity_counts["high"] > 0:
+            return "high"
+        elif severity_counts["medium"] > 0:
+            return "medium"
+        else:
+            return "low"
+    
+    def _get_detected_categories(self, risks: List[Dict]) -> List[str]:
+        """Get list of unique risk categories detected."""
+        categories = set()
+        for risk in risks:
+            category = risk.get("category")
+            if category:
+                categories.add(category)
+        return sorted(list(categories))
 
     def redact_text(self, text: str, risks: List[Dict]) -> str:
         """Redact sensitive information from text."""

@@ -74,17 +74,29 @@ async def process_prompt(
         
         prompt_id = prompt_store.save(request.tenant_id, prompt_data)
         
+        # Map action to event_type format
+        event_type_mapping = {
+            "block": "blocked",
+            "redact": "redacted",
+            "warn": "warned",
+            "allow": "processed"
+        }
+        event_type = event_type_mapping.get(rule_result["action"], "processed")
+        
         # Log the event
         log_data = {
             "prompt_id": prompt_id,
-            "event_type": rule_result["action"],
+            "event_type": event_type,
             "details": {
+                "prompt": request.prompt,  # Include the actual prompt
                 "reason": rule_result["reason"],
                 "risks_detected": len(detection_result["risks"]),
                 "rules_applied": len(rule_result["applied_rules"])
             },
             "user_id": request.user_id or "",
-            "metadata": request.metadata or {}
+            "metadata": request.metadata or {},
+            "severity": detection_result.get("severity", "low"),
+            "risk_categories": detection_result.get("detected_categories", [])
         }
         
         log_store.save(request.tenant_id, log_data)
@@ -98,7 +110,10 @@ async def process_prompt(
             anomaly_score=detection_result["anomaly_score"],
             confidence=detection_result["confidence"],
             reason=rule_result["reason"],
-            applied_rules=rule_result["applied_rules"]
+            applied_rules=rule_result["applied_rules"],
+            severity=detection_result.get("severity", "low"),
+            risk_categories=detection_result.get("detected_categories", []),
+            prompt=request.prompt
         )
     
     except HTTPException:

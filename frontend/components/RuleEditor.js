@@ -77,7 +77,7 @@ export default function RuleEditor({ rule = null, onSubmit, onCancel }) {
   ];
 
   return (
-    <div className="card">
+    <div className="card animate-fade-in">
       <div className="mb-6">
         <h3 className="text-lg font-semibold text-gray-900">
           {rule ? 'Edit Rule' : 'Create New Rule'}

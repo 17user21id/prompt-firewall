@@ -24,17 +24,24 @@ class LogStore(Store):
         """Save a log entry for a tenant."""
         log_ref = self.db.collection(self.collection).document(tenant_id).collection("logs").document()
         
+        # Extract severity and risk_categories from details if present
+        details = data.get("details", {})
+        severity = data.get("severity") or details.get("severity")
+        risk_categories = data.get("risk_categories") or details.get("risk_categories", [])
+        
         # Prepare log data
         log_data = {
             "log_id": log_ref.id,
             "prompt_id": data.get("prompt_id", ""),
             "event_type": data.get("event_type", "processed"),
-            "details": data.get("details", {}),
+            "details": details,
             "timestamp": datetime.utcnow(),
             "user_id": data.get("user_id", ""),
             "ip_address": data.get("ip_address", ""),
             "user_agent": data.get("user_agent", ""),
-            "metadata": data.get("metadata", {})
+            "metadata": data.get("metadata", {}),
+            "severity": severity,
+            "risk_categories": risk_categories
         }
         
         log_ref.set(log_data)

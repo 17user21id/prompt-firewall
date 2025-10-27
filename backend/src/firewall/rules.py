@@ -87,8 +87,8 @@ class FirewallRules:
                 elif risk_action == "warn":
                     reason_parts.append(f"Warning for {risk_type}: {risk.get('match', '')}")
         
-        # Generate final reason
-        reason = "; ".join(reason_parts) if reason_parts else "No specific actions taken"
+        # Generate final reason - structured format
+        reason = self._generate_structured_reason(final_action, risks)
         
         return {
             "action": final_action,
@@ -322,3 +322,87 @@ class FirewallRules:
             stats["by_severity"][severity] = stats["by_severity"].get(severity, 0) + 1
         
         return stats
+
+    def _generate_structured_reason(self, action: str, risks: List[Dict]) -> str:
+        """Generate a user-friendly structured reason from detected risks."""
+        if not risks:
+            return "No risks detected"
+        
+        if action == "allow":
+            return "Prompt processed successfully - no risks detected"
+        
+        # Group risks by category
+        categories = {
+            "PROMPT_INJECTION": {"name": "Prompt Injection", "matches": []},
+            "PII": {"name": "PII (Personally Identifiable Information)", "matches": []},
+            "PHI": {"name": "PHI (Protected Health Information)", "matches": []},
+            "PCI": {"name": "PCI (Payment Card Information)", "matches": []},
+            "CUSTOM": {"name": "Custom Pattern", "matches": []},
+            "OTHER": {"name": "Other", "matches": []}
+        }
+        
+        # First pass: Collect unique matches and their categories
+        seen_matches = {}  # {match: [categories]}
+        
+        for risk in risks:
+            risk_type = risk.get("type", "")
+            match = risk.get("match", "")
+            
+            if not match or len(match) > 100:
+                continue
+            
+            # Determine category
+            category = "OTHER"
+            if "INJECTION" in risk_type:
+                category = "PROMPT_INJECTION"
+            elif "PHI" in risk_type or risk.get("category") == "PHI":
+                category = "PHI"
+            elif "PCI" in risk_type or risk.get("category") == "PCI":
+                category = "PCI"
+            elif "PII" in risk_type or risk.get("category") == "PII":
+                category = "PII"
+            elif "CUSTOM" in risk_type:
+                category = "CUSTOM"
+            
+            # Normalize match text for comparison (trim and lower)
+            normalized_match = match.strip()
+            
+            # Track matches with their categories
+            if normalized_match not in seen_matches:
+                seen_matches[normalized_match] = []
+            
+            if category not in seen_matches[normalized_match]:
+                seen_matches[normalized_match].append(category)
+        
+        # Second pass: Add unique matches to their primary category (first occurrence)
+        for match, match_categories in seen_matches.items():
+            if match_categories:
+                primary_category = match_categories[0]
+                truncated_match = match[:80] + "..." if len(match) > 80 else match
+                categories[primary_category]["matches"].append(truncated_match)
+        
+        # Build the structured message
+        action_word = "blocked" if action == "block" else "redacted" if action == "redact" else "flagged"
+        
+        # Collect categories with matches
+        found_categories = []
+        for cat_key, cat_info in categories.items():
+            if cat_info["matches"]:
+                found_categories.append(f"{cat_info['name']} ({len(cat_info['matches'])} match{'es' if len(cat_info['matches']) > 1 else ''})")
+        
+        if found_categories:
+            reason = f"Prompt has been {action_word} due to the following entities: {', '.join(found_categories)}"
+            
+            # Add unique matches for each category (limit to 3 per category)
+            for cat_key, cat_info in categories.items():
+                if cat_info["matches"]:
+                    # Limit matches to avoid huge reasons
+                    display_matches = cat_info["matches"][:3]
+                    matches_str = "; ".join([f'"{m}"' for m in display_matches])
+                    if len(cat_info["matches"]) > 3:
+                        matches_str += f" and {len(cat_info['matches']) - 3} more"
+                    reason += f"\n{cat_info['name']}: {matches_str}"
+        else:
+            reason = f"Prompt has been {action_word}"
+        
+        return reason

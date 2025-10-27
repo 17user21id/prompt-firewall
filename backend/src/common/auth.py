@@ -88,8 +88,8 @@ class AuthManager:
             print(AuthConstants.ERROR_DECRYPTING_API_KEY.format(e))
             return encrypted_api_key  # Fallback to encrypted value
     
-    def validate_tenant_credentials(self, name: str, password: str) -> Optional[Dict[str, Any]]:
-        """Validate tenant credentials (name and password)."""
+    def validate_tenant_credentials(self, name: str, password: str):
+        """Validate tenant credentials (name and password). Returns (tenant, error_message)."""
         try:
             self.logger.debug(AuthConstants.VALIDATING_CREDENTIALS.format(name))
             
@@ -97,20 +97,20 @@ class AuthManager:
             tenants = self._get_tenant_store().query(filters={"name": name})
             if not tenants:
                 self.logger.warning(AuthConstants.TENANT_NOT_FOUND_LOG.format(name))
-                return None
+                return None, "Tenant not found. Please check the tenant name or create a new tenant."
             
             tenant = tenants[0]  # Should be unique
             stored_password = tenant.get("password")
             
             if not stored_password or not self.verify_password(password, stored_password):
                 self.logger.warning(AuthConstants.INVALID_PASSWORD_LOG.format(name))
-                return None
+                return None, "Invalid password. Please check your password and try again."
             
             self.logger.info(AuthConstants.SUCCESSFUL_LOGIN_LOG.format(name))
-            return tenant
+            return tenant, None
         except Exception as e:
             self.logger.error(AuthConstants.ERROR_VALIDATING_CREDENTIALS.format(name, e))
-            return None
+            return None, "An error occurred during validation."
     
     def check_tenant_name_exists(self, name: str) -> bool:
         """Check if a tenant name already exists."""

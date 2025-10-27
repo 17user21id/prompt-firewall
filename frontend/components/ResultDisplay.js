@@ -73,7 +73,11 @@ export default function ResultDisplay({ result }) {
           <h4 className="font-medium text-gray-700 mb-4">Detected Risks:</h4>
           <div className="grid gap-3">
             {result.risks.map((risk, index) => (
-              <RiskIndicator key={index} risk={risk} />
+              <RiskIndicator 
+                key={index} 
+                risk={risk} 
+                originalPrompt={result.prompt || result.metadata?.prompt || ''} 
+              />
             ))}
           </div>
         </div>

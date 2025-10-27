@@ -1,6 +1,8 @@
 # Firestore Configuration
 import json
 import os
+from google.cloud.firestore import Client
+from google.auth import default
 from google.oauth2 import service_account
 
 def get_firestore_credentials():
@@ -21,14 +23,24 @@ def get_firestore_credentials():
     if os.path.exists(default_key_path):
         return service_account.Credentials.from_service_account_file(default_key_path)
     
-    raise ValueError(
-        "Firestore credentials not found. Please set GOOGLE_APPLICATION_CREDENTIALS environment variable "
-        "or place service-account-key.json in the backend directory. "
-        "See config.env.example for more details."
-    )
+    # For Cloud Run: use default credentials
+    try:
+        credentials, project = default()
+        return credentials
+    except Exception as e:
+        # Only raise error if we're in development and no credentials are found
+        raise ValueError(
+            "Firestore credentials not found. Please set GOOGLE_APPLICATION_CREDENTIALS environment variable "
+            "or place service-account-key.json in the backend directory. "
+            "See config.env.example for more details."
+        )
 
 # Create credentials object
-FIRESTORE_CREDENTIALS = get_firestore_credentials()
+try:
+    FIRESTORE_CREDENTIALS = get_firestore_credentials()
+except ValueError as e:
+    # In Cloud Run, credentials will be obtained lazily
+    FIRESTORE_CREDENTIALS = None
 
 # Project Configuration
 PROJECT_ID = "prompt-firewall-mvp"

@@ -1,15 +1,34 @@
 import { useSession, signOut } from 'next-auth/react';
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/router';
+import { getSession, clearSession } from '../lib/session';
 
 export default function Layout({ children }) {
   const { data: session, status } = useSession();
+  const router = useRouter();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
+  const [tenantSession, setTenantSession] = useState(null);
+
+  // Check for tenant session
+  useEffect(() => {
+    const checkTenantSession = () => {
+      const tenant = getSession();
+      setTenantSession(tenant);
+    };
+    
+    checkTenantSession();
+    // Check periodically in case session changes
+    const interval = setInterval(checkTenantSession, 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
-    // Check for saved theme preference or default to light mode
-    const isDark = localStorage.getItem('darkMode') === 'true';
+    // Check for saved theme preference or default to dark mode
+    const savedDarkMode = localStorage.getItem('darkMode');
+    // Default to dark mode if not saved
+    const isDark = savedDarkMode === null ? true : savedDarkMode === 'true';
     setDarkMode(isDark);
     if (isDark) {
       document.documentElement.classList.add('dark');
@@ -29,10 +48,22 @@ export default function Layout({ children }) {
     }
   };
 
+  const handleLogout = () => {
+    if (tenantSession) {
+      clearSession();
+      setTenantSession(null);
+      router.push('/login');
+    } else if (session) {
+      signOut();
+    }
+  };
+
+  const isLoggedIn = session || tenantSession;
+
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-300">
       {/* Navigation */}
-      <nav className="bg-primary-600 dark:bg-primary-800 shadow-lg">
+      <nav className="sticky top-0 z-50 bg-primary-600 dark:bg-primary-800 shadow-lg transition-colors duration-300">
         <div className="container">
           <div className="flex justify-between items-center h-16">
             {/* Logo */}
@@ -49,22 +80,31 @@ export default function Layout({ children }) {
                 href="/" 
                 className="text-white hover:text-primary-200 transition-colors duration-200 font-medium"
               >
-                Demo
+                Prompt Test
               </Link>
-              {session ? (
+              {isLoggedIn ? (
                 <>
-                  <Link 
-                    href="/admin" 
-                    className="text-white hover:text-primary-200 transition-colors duration-200 font-medium"
-                  >
-                    Admin Console
-                  </Link>
+                  {session && (
+                    <Link 
+                      href="/admin" 
+                      className="text-white hover:text-primary-200 transition-colors duration-200 font-medium"
+                    >
+                      Admin Console
+                    </Link>
+                  )}
                   <div className="flex items-center space-x-4">
-                    <span className="text-primary-200 text-sm">
-                      Welcome, {session.user.name}
-                    </span>
+                    {session && (
+                      <span className="text-primary-200 text-sm">
+                        Welcome, {session.user.name}
+                      </span>
+                    )}
+                    {tenantSession && (
+                      <span className="text-primary-200 text-sm">
+                        {tenantSession.tenantName}
+                      </span>
+                    )}
                     <button 
-                      onClick={() => signOut()}
+                      onClick={handleLogout}
                       className="text-white hover:text-primary-200 transition-colors duration-200 font-medium"
                     >
                       Logout
@@ -125,24 +165,33 @@ export default function Layout({ children }) {
                   className="block px-3 py-2 text-white hover:text-primary-200 transition-colors duration-200"
                   onClick={() => setMobileMenuOpen(false)}
                 >
-                  Demo
+                  Prompt Test
                 </Link>
-                {session ? (
+                {isLoggedIn ? (
                   <>
-                    <Link 
-                      href="/admin" 
-                      className="block px-3 py-2 text-white hover:text-primary-200 transition-colors duration-200"
-                      onClick={() => setMobileMenuOpen(false)}
-                    >
-                      Admin Console
-                    </Link>
+                    {session && (
+                      <Link 
+                        href="/admin" 
+                        className="block px-3 py-2 text-white hover:text-primary-200 transition-colors duration-200"
+                        onClick={() => setMobileMenuOpen(false)}
+                      >
+                        Admin Console
+                      </Link>
+                    )}
                     <div className="px-3 py-2 border-t border-primary-500">
-                      <div className="text-primary-200 text-sm mb-2">
-                        Welcome, {session.user.name}
-                      </div>
+                      {session && (
+                        <div className="text-primary-200 text-sm mb-2">
+                          Welcome, {session.user.name}
+                        </div>
+                      )}
+                      {tenantSession && (
+                        <div className="text-primary-200 text-sm mb-2">
+                          {tenantSession.tenantName}
+                        </div>
+                      )}
                       <button 
                         onClick={() => {
-                          signOut();
+                          handleLogout();
                           setMobileMenuOpen(false);
                         }}
                         className="text-white hover:text-primary-200 transition-colors duration-200"
@@ -192,12 +241,14 @@ export default function Layout({ children }) {
       </nav>
 
       {/* Main Content */}
-      <main className="container py-8">
-        {children}
+      <main className="container py-8 animate-fade-in">
+        <div className="transition-opacity duration-300">
+          {children}
+        </div>
       </main>
 
       {/* Footer */}
-      <footer className="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 mt-auto">
+      <footer className="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 mt-auto transition-colors duration-300">
         <div className="container py-6">
           <div className="flex flex-col md:flex-row justify-between items-center">
             <div className="text-gray-600 dark:text-gray-400 text-sm">

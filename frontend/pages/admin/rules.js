@@ -186,7 +186,7 @@ export default function Rules() {
   }
 
   return (
-    <div className="container">
+    <div className="container animate-fade-in">
       <div className="max-w-6xl mx-auto">
         <div className="flex items-center justify-between mb-8">
           <div>

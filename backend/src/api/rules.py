@@ -7,6 +7,7 @@ from typing import List
 
 from ..store.firestore.rules import RuleStore
 from ..firewall.rules import FirewallRules
+from ..firewall.detection_patterns import DetectionPatternRegistry
 from ..common.auth import validate_tenant_access, log_auth_event, get_current_tenant
 from ..models.schemas import RuleCreate, RuleUpdate, RuleResponse, RuleStats, RulesQueryRequest
 
@@ -150,4 +151,59 @@ async def get_rule_stats(current_tenant: str = Depends(get_current_tenant)):
     """Get rule statistics for the current tenant."""
     stats = rule_store.get_rule_stats(current_tenant)
     return RuleStats(**stats)
+
+@router.get("/patterns")
+async def get_all_patterns(current_tenant: str = Depends(get_current_tenant)):
+    """Get all active detection patterns (built-in + custom rules)."""
+    try:
+        # Get custom rules from Firestore
+        custom_rules = rule_store.query_by_tenant(current_tenant, {"enabled": True})
+        
+        # Get built-in patterns from DetectionPatternRegistry
+        built_in_patterns = DetectionPatternRegistry.get_all_patterns()
+        
+        # Format built-in patterns
+        built_in_list = []
+        for pattern in built_in_patterns:
+            built_in_list.append({
+                "pattern_id": f"builtin_{pattern.name}",
+                "type": pattern.category.value,
+                "pattern": pattern.pattern.pattern,  # Get regex pattern string
+                "action": pattern.action,
+                "severity": pattern.severity,
+                "confidence": pattern.confidence,
+                "description": pattern.description,
+                "source": "built-in",
+                "enabled": True
+            })
+        
+        # Format custom rules
+        custom_list = []
+        for rule in custom_rules:
+            custom_list.append({
+                "pattern_id": rule.get("rule_id", ""),
+                "type": rule.get("type", ""),
+                "pattern": rule.get("pattern", ""),
+                "action": rule.get("action", ""),
+                "severity": rule.get("severity", ""),
+                "description": rule.get("description", ""),
+                "source": "custom",
+                "enabled": rule.get("enabled", True),
+                "created_at": rule.get("created_at", ""),
+                "updated_at": rule.get("updated_at", "")
+            })
+        
+        return {
+            "built_in_patterns": built_in_list,
+            "custom_rules": custom_list,
+            "total_built_in": len(built_in_list),
+            "total_custom": len(custom_list),
+            "total_active": len(built_in_list) + len(custom_list)
+        }
+    
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get patterns: {str(e)}"
+        )
 

@@ -3,6 +3,7 @@ import { useRouter } from 'next/router';
 import toast from 'react-hot-toast';
 import Link from 'next/link';
 import { getSession, clearSession } from '../lib/session';
+import LogTable from '../components/LogTable';
 
 export default function Dashboard() {
   const router = useRouter();
@@ -43,8 +44,9 @@ export default function Dashboard() {
       
       if (logsResponse.ok) {
         const logsData = await logsResponse.json();
-        setLogs(logsData.logs || []);
-        calculateStats(logsData.logs || []);
+        // API returns array directly
+        setLogs(Array.isArray(logsData) ? logsData : logsData.logs || []);
+        calculateStats(Array.isArray(logsData) ? logsData : logsData.logs || []);
       }
       
       // Load rules
@@ -56,7 +58,8 @@ export default function Dashboard() {
       
       if (rulesResponse.ok) {
         const rulesData = await rulesResponse.json();
-        setRules(rulesData.rules || []);
+        // API returns array directly
+        setRules(Array.isArray(rulesData) ? rulesData : rulesData.rules || []);
       }
     } catch (error) {
       console.error('Error loading data:', error);
@@ -75,11 +78,11 @@ export default function Dashboard() {
     };
     
     logData.forEach(log => {
-      if (log.decision === 'block') {
+      if (log.event_type === 'blocked') {
         stats.blockedPrompts++;
-      } else if (log.decision === 'redact') {
+      } else if (log.event_type === 'redacted' || log.event_type === 'warned') {
         stats.redactedPrompts++;
-      } else {
+      } else if (log.event_type === 'processed') {
         stats.allowedPrompts++;
       }
     });
@@ -94,117 +97,59 @@ export default function Dashboard() {
 
   if (loading || !tenantInfo) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center animate-fade-in">
         <div className="spinner"></div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      {/* Header */}
-      <div className="bg-white dark:bg-gray-800 shadow">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center justify-between">
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-              Dashboard - {tenantInfo.name}
-            </h1>
-            <div className="flex items-center space-x-4">
-              <Link href="/test" className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300">
-                Test Prompts
-              </Link>
-              <button
-                onClick={handleLogout}
-                className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700"
-              >
-                Logout
-              </button>
-            </div>
-          </div>
-        </div>
+    <div className="animate-fade-in">
+      {/* Dashboard Header */}
+      <div className="mb-6">
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+          Dashboard - {tenantInfo.name}
+        </h1>
+        <p className="text-gray-600 dark:text-gray-400">
+          Monitor your prompt security and activity
+        </p>
       </div>
 
-      {/* Stats */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+        {/* Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8 animate-slide-up">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 transition-all duration-300 hover:shadow-md">
             <div className="text-sm font-medium text-gray-500 dark:text-gray-400">Total Prompts</div>
             <div className="mt-2 text-3xl font-semibold text-gray-900 dark:text-white">{stats.totalPrompts}</div>
           </div>
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 transition-all duration-300 hover:shadow-md">
             <div className="text-sm font-medium text-red-600 dark:text-red-400">Blocked</div>
             <div className="mt-2 text-3xl font-semibold text-red-600 dark:text-red-400">{stats.blockedPrompts}</div>
           </div>
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 transition-all duration-300 hover:shadow-md">
             <div className="text-sm font-medium text-yellow-600 dark:text-yellow-400">Redacted</div>
             <div className="mt-2 text-3xl font-semibold text-yellow-600 dark:text-yellow-400">{stats.redactedPrompts}</div>
           </div>
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 transition-all duration-300 hover:shadow-md">
             <div className="text-sm font-medium text-green-600 dark:text-green-400">Allowed</div>
             <div className="mt-2 text-3xl font-semibold text-green-600 dark:text-green-400">{stats.allowedPrompts}</div>
           </div>
         </div>
 
         {/* Logs */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow mb-8">
-          <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Recent Prompts</h2>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-              <thead className="bg-gray-50 dark:bg-gray-900">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Timestamp
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Prompt
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Decision
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Risks
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                {logs.slice(0, 10).map((log, index) => (
-                  <tr key={index}>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                      {new Date(log.timestamp).toLocaleString()}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-900 dark:text-gray-100">
-                      {log.prompt?.substring(0, 100)}...
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                        log.decision === 'block' ? 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300' :
-                        log.decision === 'redact' ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300' :
-                        'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300'
-                      }`}>
-                        {log.decision}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
-                      {log.risks?.length || 0} risk(s)
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+        <div className="mb-8">
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Recent Prompts</h2>
+          <LogTable logs={logs} loading={loading} />
         </div>
 
         {/* Rules */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
-          <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow transition-all duration-300">
+          <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 transition-colors duration-300">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Active Rules</h2>
           </div>
           <div className="p-6">
             <div className="space-y-4">
               {rules.map((rule, index) => (
-                <div key={index} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                <div key={index} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 transition-all duration-300 hover:shadow-md">
                   <div className="flex items-center justify-between">
                     <div>
                       <h3 className="font-semibold text-gray-900 dark:text-white">{rule.type}</h3>
@@ -232,7 +177,6 @@ export default function Dashboard() {
             </div>
           </div>
         </div>
-      </div>
     </div>
   );
 }

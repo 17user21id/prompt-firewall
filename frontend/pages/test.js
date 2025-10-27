@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
-import PromptForm from '../components/PromptForm';
+import Link from 'next/link';
 import ResultDisplay from '../components/ResultDisplay';
 import toast from 'react-hot-toast';
 import { getSession, clearSession } from '../lib/session';
@@ -80,18 +80,18 @@ export default function TestPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-300">
       {/* Header */}
-      <div className="bg-white dark:bg-gray-800 shadow">
+      <div className="bg-white dark:bg-gray-800 shadow transition-colors duration-300">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between">
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
               Test Prompts - {tenantInfo.name}
             </h1>
             <div className="flex items-center space-x-4">
-              <a href="/dashboard" className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300">
+              <Link href="/dashboard" className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300">
                 Dashboard
-              </a>
+              </Link>
               <button
                 onClick={() => {
                   clearSession();
@@ -146,7 +146,7 @@ export default function TestPage() {
 
         {/* Loading State */}
         {loading && (
-          <div className="card">
+          <div className="card animate-fade-in">
             <div className="flex items-center justify-center py-12">
               <div className="flex items-center space-x-3">
                 <div className="spinner"></div>
@@ -157,7 +157,7 @@ export default function TestPage() {
         )}
 
         {/* Results */}
-        {result && <ResultDisplay result={result} />}
+        {result && <div className="animate-fade-in"><ResultDisplay result={result} /></div>}
 
         {/* Features */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -215,7 +215,7 @@ function SimplePromptForm({ onSubmit }) {
   };
 
   return (
-    <div className="card">
+    <div className="card animate-fade-in">
       <form onSubmit={handleSubmit} className="space-y-6" aria-label="Prompt Submission Form">
         <div>
           <label htmlFor="prompt" className="form-label">

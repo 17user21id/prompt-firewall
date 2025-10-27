@@ -112,6 +112,9 @@ class QueryResponse(BaseModel):
     confidence: float = Field(ge=0.0, le=1.0)
     reason: str
     applied_rules: List[Dict[str, Any]] = []
+    severity: Optional[str] = "low"
+    risk_categories: Optional[List[str]] = []
+    prompt: Optional[str] = ""
 
 class RuleCreate(BaseModel):
     """Model for creating a new rule."""
@@ -202,6 +205,8 @@ class LogResponse(BaseModel):
     ip_address: Optional[str] = None
     user_agent: Optional[str] = None
     metadata: Dict[str, Any] = {}
+    severity: Optional[str] = None
+    risk_categories: Optional[List[str]] = None
 
 class LogStats(BaseModel):
     """Model for log statistics."""

@@ -1,4 +1,4 @@
-export default function RiskIndicator({ risk }) {
+export default function RiskIndicator({ risk, originalPrompt = '' }) {
   const getSeverityColor = (severity) => {
     switch (severity) {
       case 'critical': return 'risk-critical';
@@ -7,6 +7,31 @@ export default function RiskIndicator({ risk }) {
       case 'low': return 'risk-low';
       default: return 'risk-low';
     }
+  };
+
+  const getSurroundingContext = () => {
+    if (!originalPrompt || (risk.start === undefined && !risk.match)) {
+      return null;
+    }
+
+    const matchText = risk.match || '';
+    const windowSize = 30; // Characters before and after
+    
+    if (risk.start !== undefined && risk.end !== undefined) {
+      const start = Math.max(0, risk.start - windowSize);
+      const end = Math.min(originalPrompt.length, risk.end + windowSize);
+      const beforeContext = originalPrompt.substring(start, risk.start);
+      const matchText_actual = originalPrompt.substring(risk.start, risk.end);
+      const afterContext = originalPrompt.substring(risk.end, end);
+      
+      return {
+        before: beforeContext,
+        match: matchText_actual,
+        after: afterContext
+      };
+    }
+    
+    return null;
   };
 
   const getActionIcon = (action) => {
@@ -35,6 +60,8 @@ export default function RiskIndicator({ risk }) {
     return typeLabels[type] || type;
   };
 
+  const context = getSurroundingContext();
+
   return (
     <div className={`risk-indicator ${getSeverityColor(risk.severity)}`}>
       <div className="flex items-center justify-between">
@@ -60,6 +87,16 @@ export default function RiskIndicator({ risk }) {
       {risk.description && (
         <div className="mt-2 text-sm opacity-90">
           {risk.description}
+        </div>
+      )}
+      
+      {context && (
+        <div className="mt-3 bg-gray-100 dark:bg-gray-700 p-3 rounded text-xs font-mono">
+          <span className="text-gray-500 dark:text-gray-400">{context.before}</span>
+          <span className="bg-red-200 dark:bg-red-900/50 text-red-800 dark:text-red-300 font-bold px-1 rounded">
+            {context.match}
+          </span>
+          <span className="text-gray-500 dark:text-gray-400">{context.after}</span>
         </div>
       )}
       

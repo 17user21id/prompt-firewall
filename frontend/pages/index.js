@@ -19,10 +19,10 @@ export default function Home() {
   }, [router]);
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 transition-colors duration-300 animate-fade-in">
       <div className="text-center">
         <div className="spinner mx-auto mb-4"></div>
-        <p className="text-gray-600">Redirecting...</p>
+        <p className="text-gray-600 dark:text-gray-300">Redirecting...</p>
       </div>
     </div>
   );

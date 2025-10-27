@@ -71,12 +71,12 @@ async def login_tenant(request: TenantLogin):
     """Login tenant with name and password."""
     try:
         # Validate tenant credentials
-        tenant = auth_manager.validate_tenant_credentials(request.name, request.password)
+        tenant, error_message = auth_manager.validate_tenant_credentials(request.name, request.password)
         
         if not tenant:
                 raise HTTPException(
                     status_code=ApiConstants.HTTP_401_UNAUTHORIZED,
-                    detail=ApiConstants.INVALID_TENANT_CREDENTIALS
+                    detail=error_message or ApiConstants.INVALID_TENANT_CREDENTIALS
                 )
         
         # Get tenant with decrypted API key
