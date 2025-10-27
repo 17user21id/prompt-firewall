@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import toast from 'react-hot-toast';
+import { VALIDATION_MESSAGES } from '../lib/constants';
 
 export default function PromptForm({ onSubmit }) {
   const [formData, setFormData] = useState({
@@ -13,12 +14,12 @@ export default function PromptForm({ onSubmit }) {
     e.preventDefault();
     
     if (!formData.prompt.trim()) {
-      toast.error('Please enter a prompt');
+      toast.error(VALIDATION_MESSAGES.PROMPT_REQUIRED);
       return;
     }
     
     if (!formData.tenantName || !formData.password) {
-      toast.error('Please provide tenant name and password');
+      toast.error(VALIDATION_MESSAGES.TENANT_NAME_REQUIRED);
       return;
     }
     
@@ -27,7 +28,7 @@ export default function PromptForm({ onSubmit }) {
       await onSubmit(formData);
       setFormData(prev => ({ ...prev, prompt: '' }));
     } catch (error) {
-      toast.error('Error processing prompt');
+      toast.error(error.message || 'Error processing prompt');
     } finally {
       setLoading(false);
     }

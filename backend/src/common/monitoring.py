@@ -1,14 +1,31 @@
 """
 Monitoring and observability configuration for Prompt Firewall.
-Integrates with GCP Cloud Monitoring and OpenTelemetry.
+Integrates with GCP Cloud Monitoring and provides Prometheus metrics.
+
+This module provides monitoring capabilities that can be enabled by setting
+the environment variable ENABLE_METRICS_COLLECTION=true.
+
+Features:
+    - Prometheus metrics collection
+    - Request tracking via middleware
+    - PII and injection detection metrics
+    - GCP Cloud Monitoring integration (optional)
 """
 
 import os
 from typing import Dict, Any
 from prometheus_client import Counter, Histogram, Gauge
-from google.cloud import monitoring_v3
-from google.cloud.monitoring import MetricServiceClient
 import logging
+
+# Optional imports for GCP Cloud Monitoring
+try:
+    from google.cloud import monitoring_v3
+    from google.cloud.monitoring import MetricServiceClient
+    GCP_MONITORING_AVAILABLE = True
+except ImportError:
+    GCP_MONITORING_AVAILABLE = False
+    monitoring_v3 = None
+    MetricServiceClient = None
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +69,9 @@ class CloudMonitoring:
     """Google Cloud Monitoring integration."""
     
     def __init__(self, project_id: str):
+        if not GCP_MONITORING_AVAILABLE:
+            raise ImportError("google-cloud-monitoring package is not installed")
+        
         self.project_id = project_id
         self.client = MetricServiceClient()
         self.project_name = f"projects/{project_id}"

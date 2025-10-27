@@ -10,14 +10,38 @@ pip install prompt-firewall-sdk
 
 ## Quick Start
 
+### 1. Create or Login to Get Credentials
+
 ```python
 from prompt_firewall import PromptFirewallSDK
 
+# Option A: Create a new tenant
+response = PromptFirewallSDK.create_tenant(
+    api_url="http://localhost:8000",
+    name="my-tenant",
+    password="secure-password123"
+)
+tenant_id = response['tenant_id']
+api_key = response['api_key']
+
+# Option B: Login to existing tenant
+response = PromptFirewallSDK.login_tenant(
+    api_url="http://localhost:8000",
+    name="my-tenant",
+    password="secure-password123"
+)
+tenant_id = response['tenant_id']
+api_key = response['api_key']
+```
+
+### 2. Initialize and Use the SDK
+
+```python
 # Initialize the SDK
 sdk = PromptFirewallSDK(
-    api_url="https://your-api-domain.com",
-    api_key="your-api-key",
-    tenant_id="your-tenant-id"
+    api_url="http://localhost:8000",
+    api_key=api_key,
+    tenant_id=tenant_id
 )
 
 # Process a prompt
@@ -34,6 +58,11 @@ print(f"Total prompts: {stats['prompt_stats']['total_prompts']}")
 
 ### PromptFirewallSDK
 
+#### Static Methods
+
+- `login_tenant(api_url: str, name: str, password: str)` - Login a tenant and get credentials
+- `create_tenant(api_url: str, name: str, password: str, metadata: dict = None)` - Create a new tenant
+
 #### Constructor
 
 ```python
@@ -45,7 +74,7 @@ PromptFirewallSDK(api_url: str, api_key: str, tenant_id: str)
 - `query(prompt: str, user_id: str = None, metadata: dict = None)` - Process a prompt
 - `get_logs(event_type: str = None, date_from: str = None, date_to: str = None, user_id: str = None, limit: int = 100)` - Get logs
 - `get_prompts(decision: str = None, date_from: str = None, date_to: str = None, user_id: str = None, has_risks: bool = None, limit: int = 100)` - Get prompt history
-- `create_rule(rule_type: str, pattern: str, action: str, severity: str, description: str = None, enabled: bool = True)` - Create a rule
+- `create_rule(rule_type: str, pattern: str, action: str, severity: str, description: str = None, enabled: bool = True, metadata: dict = None)` - Create a rule
 - `get_rules(rule_type: str = None, action: str = None, severity: str = None, enabled: bool = None, limit: int = 100)` - Get rules
 - `update_rule(rule_id: str, **kwargs)` - Update a rule
 - `delete_rule(rule_id: str)` - Delete a rule
@@ -57,11 +86,18 @@ PromptFirewallSDK(api_url: str, api_key: str, tenant_id: str)
 ### Basic Usage
 
 ```python
+# Login to get credentials
+credentials = PromptFirewallSDK.login_tenant(
+    api_url="http://localhost:8000",
+    name="my-tenant",
+    password="my-password"
+)
+
 # Initialize SDK
 sdk = PromptFirewallSDK(
     api_url="http://localhost:8000",
-    api_key="your-api-key",
-    tenant_id="your-tenant-id"
+    api_key=credentials['api_key'],
+    tenant_id=credentials['tenant_id']
 )
 
 # Process a prompt

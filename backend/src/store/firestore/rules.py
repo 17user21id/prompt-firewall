@@ -2,15 +2,15 @@ from google.cloud import firestore
 from datetime import datetime
 from typing import Dict, List, Optional
 import os
-from .base import Store
-from ...common.firestore_config import FIRESTORE_CREDENTIALS, PROJECT_ID
+from .base import FirestoreBaseStore as Store
+from .config import FIRESTORE_CREDENTIALS, PROJECT_ID
 
 class RuleStore(Store):
     """Firestore implementation for rules table."""
     
     def __init__(self):
-        # Initialize Firestore client with credentials from config
-        self.db = firestore.Client(project=PROJECT_ID, credentials=FIRESTORE_CREDENTIALS)
+        # Use shared client from base class
+        super().__init__()
         self.collection = "tenants"
 
     def create(self, data: Dict) -> str:

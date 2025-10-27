@@ -1,7 +1,7 @@
 export default async function handler(req, res) {
   if (req.method === 'POST') {
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/v1/rules`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/rules`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -26,7 +26,7 @@ export default async function handler(req, res) {
     }
   } else if (req.method === 'GET') {
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/v1/rules`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/rules`, {
         headers: { 
           'Authorization': req.headers.authorization 
         },
@@ -49,7 +49,7 @@ export default async function handler(req, res) {
   } else if (req.method === 'PUT') {
     try {
       const { ruleId } = req.query;
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/v1/rules/${ruleId}`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/rules/${ruleId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -75,7 +75,7 @@ export default async function handler(req, res) {
   } else if (req.method === 'DELETE') {
     try {
       const { ruleId } = req.query;
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/v1/rules/${ruleId}`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/rules/${ruleId}`, {
         method: 'DELETE',
         headers: { 
           'Authorization': req.headers.authorization 

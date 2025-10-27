@@ -1,10 +1,12 @@
+import { TYPE_LABELS, ACTION_ICONS, SEVERITY_LEVELS } from '../lib/constants';
+
 export default function RiskIndicator({ risk, originalPrompt = '' }) {
   const getSeverityColor = (severity) => {
     switch (severity) {
-      case 'critical': return 'risk-critical';
-      case 'high': return 'risk-high';
-      case 'medium': return 'risk-medium';
-      case 'low': return 'risk-low';
+      case SEVERITY_LEVELS.CRITICAL: return 'risk-critical';
+      case SEVERITY_LEVELS.HIGH: return 'risk-high';
+      case SEVERITY_LEVELS.MEDIUM: return 'risk-medium';
+      case SEVERITY_LEVELS.LOW: return 'risk-low';
       default: return 'risk-low';
     }
   };
@@ -35,29 +37,11 @@ export default function RiskIndicator({ risk, originalPrompt = '' }) {
   };
 
   const getActionIcon = (action) => {
-    switch (action) {
-      case 'block': return '🚫';
-      case 'redact': return '🔒';
-      case 'warn': return '⚠️';
-      case 'allow': return '✅';
-      default: return 'ℹ️';
-    }
+    return ACTION_ICONS[action] || ACTION_ICONS.info;
   };
 
   const getTypeLabel = (type) => {
-    const typeLabels = {
-      'PII_EMAIL': 'Email Address',
-      'PII_SSN': 'Social Security Number',
-      'PII_PHONE': 'Phone Number',
-      'PII_CREDIT_CARD': 'Credit Card',
-      'PII_IP_ADDRESS': 'IP Address',
-      'PII_URL': 'URL',
-      'PII_MEDICAL_RECORD': 'Medical Record',
-      'INJECTION': 'Prompt Injection',
-      'INJECTION_OPENAI': 'OpenAI Injection',
-      'CUSTOM': 'Custom Pattern'
-    };
-    return typeLabels[type] || type;
+    return TYPE_LABELS[type] || type;
   };
 
   const context = getSurroundingContext();

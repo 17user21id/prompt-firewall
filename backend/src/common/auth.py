@@ -2,23 +2,22 @@
 Authentication utilities for tenant validation and API key management.
 """
 
-from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from typing import Optional, Dict, Any
-import hashlib
+import base64
+import os
+import re
 import secrets
 from datetime import datetime, timedelta, timezone
-import os
+from typing import Dict, Any, Tuple, Optional
+
 import bcrypt
 from cryptography.fernet import Fernet
-import base64
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
-# TenantStore will be imported when needed to avoid circular imports
-from .logger import get_logger
 from .auth_constants import AuthConstants
-from .security_constants import SecurityConstants
+from .logger import get_logger
 from .regex_constants import RegexConstants
-from .message_templates import MessageTemplates
+from .security_constants import SecurityConstants
 
 # Security scheme
 security = HTTPBearer()
@@ -48,11 +47,11 @@ class AuthManager:
         key = os.getenv(AuthConstants.ENCRYPTION_KEY_ENV)
         if key:
             return key.encode()
-        else:
-            # Generate a new key (in production, store this securely)
-            new_key = Fernet.generate_key()
-            print(AuthConstants.ENCRYPTION_KEY_WARNING.format(new_key.decode()))
-            return new_key
+        
+        # Generate a new key (in production, store this securely)
+        new_key = Fernet.generate_key()
+        self.logger.warning(AuthConstants.ENCRYPTION_KEY_WARNING.format(new_key.decode()))
+        return new_key
 
     def hash_password(self, password: str) -> str:
         """Hash a password using bcrypt."""
@@ -63,10 +62,12 @@ class AuthManager:
     def verify_password(self, password: str, hashed_password: str) -> bool:
         """Verify a password against its hash."""
         try:
-            return bcrypt.checkpw(password.encode(SecurityConstants.ENCRYPTION_ALGORITHM), 
-                                 hashed_password.encode(SecurityConstants.ENCRYPTION_ALGORITHM))
+            return bcrypt.checkpw(
+                password.encode(SecurityConstants.ENCRYPTION_ALGORITHM),
+                hashed_password.encode(SecurityConstants.ENCRYPTION_ALGORITHM)
+            )
         except Exception as e:
-            print(AuthConstants.ERROR_VERIFYING_PASSWORD.format(e))
+            self.logger.error(AuthConstants.ERROR_VERIFYING_PASSWORD.format(e))
             return False
     
     def encrypt_api_key(self, api_key: str) -> str:
@@ -75,7 +76,7 @@ class AuthManager:
             encrypted_key = self.cipher_suite.encrypt(api_key.encode())
             return base64.b64encode(encrypted_key).decode(SecurityConstants.BASE64_ENCODING)
         except Exception as e:
-            print(AuthConstants.ERROR_ENCRYPTING_API_KEY.format(e))
+            self.logger.error(AuthConstants.ERROR_ENCRYPTING_API_KEY.format(e))
             return api_key  # Fallback to unencrypted
     
     def decrypt_api_key(self, encrypted_api_key: str) -> str:
@@ -85,10 +86,10 @@ class AuthManager:
             decrypted_key = self.cipher_suite.decrypt(encrypted_bytes)
             return decrypted_key.decode(SecurityConstants.ENCRYPTION_ALGORITHM)
         except Exception as e:
-            print(AuthConstants.ERROR_DECRYPTING_API_KEY.format(e))
+            self.logger.error(AuthConstants.ERROR_DECRYPTING_API_KEY.format(e))
             return encrypted_api_key  # Fallback to encrypted value
     
-    def validate_tenant_credentials(self, name: str, password: str):
+    def validate_tenant_credentials(self, name: str, password: str) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
         """Validate tenant credentials (name and password). Returns (tenant, error_message)."""
         try:
             self.logger.debug(AuthConstants.VALIDATING_CREDENTIALS.format(name))
@@ -118,8 +119,9 @@ class AuthManager:
             tenants = self._get_tenant_store().query(filters={"name": name})
             return len(tenants) > 0
         except Exception as e:
-            print(AuthConstants.ERROR_CHECKING_TENANT_NAME.format(e))
+            self.logger.error(AuthConstants.ERROR_CHECKING_TENANT_NAME.format(e))
             return False
+    
     def validate_tenant_api_key(self, tenant_id: str, api_key: str) -> bool:
         """Validate a tenant's API key."""
         try:
@@ -135,7 +137,7 @@ class AuthManager:
             decrypted_stored_key = self.decrypt_api_key(stored_api_key)
             return decrypted_stored_key == api_key
         except Exception as e:
-            print(AuthConstants.ERROR_VALIDATING_API_KEY.format(e))
+            self.logger.error(AuthConstants.ERROR_VALIDATING_API_KEY.format(e))
             return False
 
 
@@ -180,7 +182,7 @@ async def validate_tenant_access(tenant_id: str, current_tenant: str = Depends(g
         )
     
     # Verify tenant exists
-    tenant = auth_manager.tenant_store.get(tenant_id)
+    tenant = auth_manager._get_tenant_store().get(tenant_id)
     if not tenant:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -191,7 +193,7 @@ async def validate_tenant_access(tenant_id: str, current_tenant: str = Depends(g
 
 async def get_tenant_info(tenant_id: str = Depends(validate_tenant_access)) -> Dict[str, Any]:
     """Get tenant information for the current tenant."""
-    tenant = auth_manager.tenant_store.get(tenant_id)
+    tenant = auth_manager._get_tenant_store().get(tenant_id)
     if not tenant:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -205,7 +207,7 @@ def require_admin_access(credentials: HTTPAuthorizationCredentials = Depends(sec
     token = credentials.credentials
     
     try:
-        tenant_id, api_key = token.split(":", 1)
+        tenant_id, api_key = token.split(AuthConstants.TOKEN_SEPARATOR, 1)
         if auth_manager.validate_tenant_api_key(tenant_id, api_key):
             # For now, all authenticated tenants can access admin functions
             # In production, you might want to add role-based access control
@@ -213,10 +215,10 @@ def require_admin_access(credentials: HTTPAuthorizationCredentials = Depends(sec
     except ValueError:
         pass
     
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=AuthConstants.INVALID_ADMIN_CREDENTIALS
-        )
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail=AuthConstants.INVALID_ADMIN_CREDENTIALS
+    )
 
 
 def validate_api_key_format(api_key: str) -> bool:
@@ -230,7 +232,6 @@ def validate_api_key_format(api_key: str) -> bool:
 def sanitize_tenant_id(tenant_id: str) -> str:
     """Sanitize tenant ID to prevent injection attacks."""
     # Remove any non-alphanumeric characters except hyphens and underscores
-    import re
     sanitized = re.sub(RegexConstants.TENANT_ID_SANITIZE_PATTERN, '', tenant_id)
     return sanitized[:AuthConstants.TENANT_ID_MAX_LENGTH]  # Limit length
 

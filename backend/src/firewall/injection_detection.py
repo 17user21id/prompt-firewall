@@ -10,6 +10,8 @@ from difflib import SequenceMatcher
 import openai
 import os
 
+from ..common.firewall_constants import FirewallConstants, SeverityLevel, ActionType
+
 def generate_injection_keywords() -> List[str]:
     """Generate a list of keywords commonly used in prompt injection attacks."""
     return [
@@ -208,30 +210,32 @@ def call_openai_to_detect_pi(prompt: str, model: str = "gpt-4", api_key: str = N
 
 def detect_pii_patterns(text: str) -> List[Dict[str, Any]]:
     """Detect PII patterns in text using regex."""
+    from ..common.regex_constants import RegexConstants
+    
     pii_patterns = {
         "email": {
-            "pattern": r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}",
-            "severity": "high"
+            "pattern": RegexConstants.EMAIL_PATTERN,
+            "severity": SeverityLevel.HIGH.value
         },
         "ssn": {
-            "pattern": r"\b\d{3}-\d{2}-\d{4}\b",
-            "severity": "high"
+            "pattern": RegexConstants.SSN_PATTERN_VARIANT,
+            "severity": SeverityLevel.HIGH.value
         },
         "phone": {
-            "pattern": r"\b\d{3}-\d{3}-\d{4}\b|\b\(\d{3}\)\s*\d{3}-\d{4}\b",
-            "severity": "medium"
+            "pattern": RegexConstants.PHONE_PATTERN_ENHANCED,
+            "severity": SeverityLevel.MEDIUM.value
         },
         "credit_card": {
-            "pattern": r"\b\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}\b",
-            "severity": "high"
+            "pattern": RegexConstants.CREDIT_CARD_PATTERN_VARIANT,
+            "severity": SeverityLevel.HIGH.value
         },
         "ip_address": {
-            "pattern": r"\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b",
-            "severity": "medium"
+            "pattern": RegexConstants.IP_ADDRESS_PATTERN_ENHANCED,
+            "severity": SeverityLevel.MEDIUM.value
         },
         "url": {
-            "pattern": r"https?://[^\s]+",
-            "severity": "low"
+            "pattern": RegexConstants.URL_PATTERN,
+            "severity": SeverityLevel.LOW.value
         }
     }
     
@@ -260,10 +264,10 @@ def calculate_anomaly_score(text: str, pii_detected: List[Dict], injection_score
     # Add PII score based on severity
     pii_score = 0.0
     for pii in pii_detected:
-        severity = pii.get("severity", "low")
-        if severity == "high":
+        severity = pii.get("severity", SeverityLevel.LOW.value)
+        if severity == SeverityLevel.HIGH.value:
             pii_score += 0.3
-        elif severity == "medium":
+        elif severity == SeverityLevel.MEDIUM.value:
             pii_score += 0.2
         else:
             pii_score += 0.1
@@ -272,9 +276,9 @@ def calculate_anomaly_score(text: str, pii_detected: List[Dict], injection_score
     
     # Add length-based anomaly (very long or very short prompts)
     text_length = len(text.strip())
-    if text_length > 1000:
+    if text_length > FirewallConstants.ANOMALY_LENGTH_THRESHOLD_LONG:
         base_score += 0.1
-    elif text_length < 10:
+    elif text_length < FirewallConstants.ANOMALY_LENGTH_THRESHOLD_SHORT:
         base_score += 0.1
     
     # Add repetition-based anomaly
@@ -282,7 +286,7 @@ def calculate_anomaly_score(text: str, pii_detected: List[Dict], injection_score
     if len(words) > 0:
         unique_words = len(set(words))
         repetition_ratio = unique_words / len(words)
-        if repetition_ratio < 0.5:  # High repetition
+        if repetition_ratio < FirewallConstants.ANOMALY_REPETITION_THRESHOLD:  # High repetition
             base_score += 0.1
     
     return min(base_score, 1.0)

@@ -4,7 +4,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/v1/logs`, {
+    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/logs`, {
       headers: { 
         'Authorization': req.headers.authorization 
       },

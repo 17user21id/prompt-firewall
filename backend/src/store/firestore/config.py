@@ -43,5 +43,6 @@ except ValueError as e:
     FIRESTORE_CREDENTIALS = None
 
 # Project Configuration
-PROJECT_ID = "prompt-firewall-mvp"
-DATABASE_ID = "(default)"
+# Get PROJECT_ID from environment variable or use default
+PROJECT_ID = os.getenv('GOOGLE_CLOUD_PROJECT', 'prompt-firewall-mvp')
+DATABASE_ID = os.getenv('FIRESTORE_DATABASE', '(default)')

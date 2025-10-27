@@ -1,6 +1,10 @@
 import { useState, useMemo } from 'react';
+import Badge from './common/Badge';
+import { LoadingSpinner } from './common';
+import { copyToClipboard, generateCSV } from '../lib/utils';
+import { VALIDATION_MESSAGES } from '../lib/constants';
 
-export default function LogTable({ logs = [], loading = false, onLoadMore = null }) {
+export default function LogTable({ logs = [], loading = false }) {
   const [filters, setFilters] = useState({
     eventType: '',
     severity: '',
@@ -69,71 +73,43 @@ export default function LogTable({ logs = [], loading = false, onLoadMore = null
     setSelectedLog(null);
   };
 
-  const copyPrompt = () => {
+  const handleCopyPrompt = async () => {
     const prompt = selectedLog?.details?.prompt || selectedLog?.metadata?.prompt;
     if (prompt) {
-      navigator.clipboard.writeText(prompt);
-      alert('Prompt copied to clipboard!');
+      const success = await copyToClipboard(prompt);
+      if (success) {
+        // Success message can be shown via toast
+        console.log('Prompt copied to clipboard');
+      }
     }
   };
 
-  const exportLogs = () => {
+  const handleExportLogs = () => {
     if (filteredLogs.length === 0) {
-      alert('No logs to export');
+      console.log(VALIDATION_MESSAGES.NO_LOGS_TO_EXPORT);
       return;
     }
 
-    const csvContent = [
-      ['Log ID', 'Prompt ID', 'Event Type', 'Severity', 'Details', 'Timestamp'],
-      ...filteredLogs.map(log => [
-        log.log_id,
-        log.prompt_id || 'N/A',
-        log.event_type,
-        log.severity || 'N/A',
-        JSON.stringify(log.details),
-        new Date(log.timestamp).toISOString()
-      ])
-    ].map(row => row.join(',')).join('\n');
+    const csvData = filteredLogs.map(log => ({
+      log_id: log.log_id,
+      prompt_id: log.prompt_id || 'N/A',
+      event_type: log.event_type,
+      severity: log.severity || 'N/A',
+      details: JSON.stringify(log.details),
+      timestamp: new Date(log.timestamp).toISOString()
+    }));
 
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `logs-${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    generateCSV(csvData, 'logs');
   };
 
   const getSeverityBadge = (severity) => {
-    const severityClasses = {
-      critical: 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300',
-      high: 'bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300',
-      medium: 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300',
-      low: 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300'
-    };
-    
-    return (
-      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${severityClasses[severity] || 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300'}`}>
-        {severity || 'N/A'}
-      </span>
-    );
+    return <Badge severity={severity}>{severity || 'N/A'}</Badge>;
   };
 
   const getEventTypeBadge = (eventType) => {
-    const eventClasses = {
-      processed: 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300',
-      blocked: 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300',
-      redacted: 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300',
-      warned: 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300',
-      error: 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300'
-    };
-    
-    return (
-      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${eventClasses[eventType] || 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300'}`}>
-        {eventType}
-      </span>
-    );
+    return <Badge eventType={eventType}>{eventType}</Badge>;
   };
+
 
   const formatReasons = (reasonString) => {
     if (!reasonString) return [];
@@ -235,7 +211,7 @@ export default function LogTable({ logs = [], loading = false, onLoadMore = null
             
             <div className="flex space-x-2">
               <button
-                onClick={exportLogs}
+                onClick={handleExportLogs}
                 className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors disabled:opacity-50"
                 disabled={filteredLogs.length === 0}
               >
@@ -438,7 +414,7 @@ export default function LogTable({ logs = [], loading = false, onLoadMore = null
                   <span>User Prompt</span>
                   {selectedLog.details?.prompt && (
                     <button
-                      onClick={copyPrompt}
+                      onClick={handleCopyPrompt}
                       className="px-3 py-1 text-sm bg-indigo-600 text-white rounded hover:bg-indigo-700 flex items-center gap-2"
                     >
                       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">

@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import toast from 'react-hot-toast';
+import { VALIDATION_MESSAGES, RULE_TYPES, RULE_ACTIONS, SEVERITY_LEVELS, RULE_TYPE_OPTIONS, ACTION_OPTIONS, SEVERITY_OPTIONS } from '../lib/constants';
 
 export default function RuleEditor({ rule = null, onSubmit, onCancel }) {
   const [formData, setFormData] = useState({
-    type: rule?.type || 'PII_EMAIL',
+    type: rule?.type || RULE_TYPES.PII_EMAIL,
     pattern: rule?.pattern || '',
-    action: rule?.action || 'redact',
-    severity: rule?.severity || 'high',
+    action: rule?.action || RULE_ACTIONS.REDACT,
+    severity: rule?.severity || SEVERITY_LEVELS.HIGH,
     enabled: rule?.enabled ?? true,
     description: rule?.description || ''
   });
@@ -16,12 +17,12 @@ export default function RuleEditor({ rule = null, onSubmit, onCancel }) {
     e.preventDefault();
     
     if (!formData.pattern.trim()) {
-      toast.error('Pattern is required');
+      toast.error(VALIDATION_MESSAGES.PATTERN_REQUIRED);
       return;
     }
     
     if (!formData.description.trim()) {
-      toast.error('Description is required');
+      toast.error(VALIDATION_MESSAGES.DESCRIPTION_REQUIRED);
       return;
     }
     
@@ -30,16 +31,16 @@ export default function RuleEditor({ rule = null, onSubmit, onCancel }) {
       await onSubmit(formData);
       if (!rule) {
         setFormData({
-          type: 'PII_EMAIL',
+          type: RULE_TYPES.PII_EMAIL,
           pattern: '',
-          action: 'redact',
-          severity: 'high',
+          action: RULE_ACTIONS.REDACT,
+          severity: SEVERITY_LEVELS.HIGH,
           enabled: true,
           description: ''
         });
       }
     } catch (error) {
-      toast.error('Error saving rule');
+      toast.error(error.message || 'Error saving rule');
     } finally {
       setLoading(false);
     }
@@ -49,32 +50,10 @@ export default function RuleEditor({ rule = null, onSubmit, onCancel }) {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  const ruleTypes = [
-    { value: 'PII_EMAIL', label: 'Email Address' },
-    { value: 'PII_SSN', label: 'Social Security Number' },
-    { value: 'PII_PHONE', label: 'Phone Number' },
-    { value: 'PII_CREDIT_CARD', label: 'Credit Card' },
-    { value: 'PII_IP_ADDRESS', label: 'IP Address' },
-    { value: 'PII_URL', label: 'URL' },
-    { value: 'PII_MEDICAL_RECORD', label: 'Medical Record' },
-    { value: 'INJECTION', label: 'Prompt Injection' },
-    { value: 'INJECTION_OPENAI', label: 'OpenAI Injection' },
-    { value: 'CUSTOM', label: 'Custom Pattern' }
-  ];
-
-  const actions = [
-    { value: 'block', label: 'Block', description: 'Completely block the request' },
-    { value: 'redact', label: 'Redact', description: 'Remove sensitive information' },
-    { value: 'warn', label: 'Warn', description: 'Allow but log warning' },
-    { value: 'allow', label: 'Allow', description: 'Allow without modification' }
-  ];
-
-  const severities = [
-    { value: 'critical', label: 'Critical', color: 'text-red-600' },
-    { value: 'high', label: 'High', color: 'text-orange-600' },
-    { value: 'medium', label: 'Medium', color: 'text-yellow-600' },
-    { value: 'low', label: 'Low', color: 'text-blue-600' }
-  ];
+  // Use imported constants
+  const ruleTypes = RULE_TYPE_OPTIONS;
+  const actions = ACTION_OPTIONS;
+  const severities = SEVERITY_OPTIONS;
 
   return (
     <div className="card animate-fade-in">

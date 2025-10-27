@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from ..models.schemas import HealthResponse
 from ..common.app_constants import AppConstants
 from ..common.api_constants import ApiConstants
+from ..common.database_constants import DatabaseConstants
 
 router = APIRouter()
 
@@ -18,9 +19,9 @@ async def health_check():
         timestamp=datetime.now(timezone.utc).isoformat(),
         version=AppConstants.APP_VERSION,
         services={
-            "firestore": ApiConstants.FIRESTORE_STATUS,
-            "detector": ApiConstants.DETECTOR_STATUS,
-            "rules_engine": ApiConstants.RULES_ENGINE_STATUS
+            DatabaseConstants.FIRESTORE_SERVICE: ApiConstants.FIRESTORE_STATUS,
+            DatabaseConstants.DETECTOR_SERVICE: ApiConstants.DETECTOR_STATUS,
+            DatabaseConstants.RULES_ENGINE_SERVICE: ApiConstants.RULES_ENGINE_STATUS
         }
     )
 

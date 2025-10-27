@@ -2,14 +2,17 @@
 Rules management API endpoints.
 """
 
-from fastapi import APIRouter, HTTPException, Depends, status
+from fastapi import APIRouter, HTTPException, Depends
 from typing import List
 
 from ..store.firestore.rules import RuleStore
 from ..firewall.rules import FirewallRules
 from ..firewall.detection_patterns import DetectionPatternRegistry
-from ..common.auth import validate_tenant_access, log_auth_event, get_current_tenant
-from ..models.schemas import RuleCreate, RuleUpdate, RuleResponse, RuleStats, RulesQueryRequest
+from ..common.auth import log_auth_event, get_current_tenant
+from ..common.api_constants import ApiConstants
+from ..common.firewall_constants import FirewallConstants
+from ..common.database_constants import DatabaseConstants
+from ..models.schemas import RuleCreate, RuleUpdate, RuleResponse
 
 # Initialize stores
 rule_store = RuleStore()
@@ -29,13 +32,13 @@ async def get_rules(
     """Get rules for the current tenant."""
     filters = {}
     if rule_type:
-        filters["type"] = rule_type
+        filters[DatabaseConstants.TYPE_FIELD] = rule_type
     if action:
-        filters["action"] = action
+        filters[DatabaseConstants.ACTION_FIELD] = action
     if severity:
-        filters["severity"] = severity
+        filters[DatabaseConstants.SEVERITY_FIELD] = severity
     if enabled is not None:
-        filters["enabled"] = enabled
+        filters[DatabaseConstants.ENABLED_FIELD] = enabled
     
     rules = rule_store.query_by_tenant(current_tenant, filters)
     return [RuleResponse(**rule) for rule in rules[:limit]]
@@ -51,18 +54,18 @@ async def create_rule(
         validation_result = rules_engine.validate_rule(request.dict())
         if not validation_result["valid"]:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid rule: {', '.join(validation_result['errors'])}"
+                status_code=ApiConstants.HTTP_400_BAD_REQUEST,
+                detail=ApiConstants.INVALID_RULE.format(', '.join(validation_result['errors']))
             )
         
         rule_id = rule_store.save(current_tenant, request.dict())
         rule = rule_store.get_by_tenant(current_tenant, rule_id)
         
         # Log rule creation
-        log_auth_event(current_tenant, "rule_created", {
-            "rule_id": rule_id,
-            "rule_type": request.type,
-            "action": request.action
+        log_auth_event(current_tenant, FirewallConstants.EVENT_RULE_CREATED, {
+            DatabaseConstants.RULE_ID_FIELD: rule_id,
+            DatabaseConstants.RULE_TYPE_FIELD: request.type,
+            DatabaseConstants.ACTION_FIELD: request.action
         })
         
         return RuleResponse(**rule)
@@ -71,8 +74,8 @@ async def create_rule(
         raise
     except Exception as e:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to create rule: {str(e)}"
+            status_code=ApiConstants.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=ApiConstants.FAILED_TO_CREATE_RULE.format(str(e))
         )
 
 @router.put("/rules/{rule_id}", response_model=RuleResponse)
@@ -88,23 +91,23 @@ async def update_rule(
             validation_result = rules_engine.validate_rule(request.dict())
             if not validation_result["valid"]:
                 raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Invalid rule: {', '.join(validation_result['errors'])}"
+                    status_code=ApiConstants.HTTP_400_BAD_REQUEST,
+                    detail=ApiConstants.INVALID_RULE.format(', '.join(validation_result['errors']))
                 )
         
         success = rule_store.update_by_tenant(current_tenant, rule_id, request.dict())
         if not success:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Rule not found"
+                status_code=ApiConstants.HTTP_404_NOT_FOUND,
+                detail=ApiConstants.RULE_NOT_FOUND
             )
         
         rule = rule_store.get_by_tenant(current_tenant, rule_id)
         
         # Log rule update
-        log_auth_event(current_tenant, "rule_updated", {
-            "rule_id": rule_id,
-            "updated_fields": list(request.dict(exclude_unset=True).keys())
+        log_auth_event(current_tenant, FirewallConstants.EVENT_RULE_UPDATED, {
+            DatabaseConstants.RULE_ID_FIELD: rule_id,
+            DatabaseConstants.UPDATED_FIELDS_FIELD: list(request.dict(exclude_unset=True).keys())
         })
         
         return RuleResponse(**rule)
@@ -113,8 +116,8 @@ async def update_rule(
         raise
     except Exception as e:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to update rule: {str(e)}"
+            status_code=ApiConstants.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=ApiConstants.FAILED_TO_UPDATE_RULE.format(str(e))
         )
 
 @router.delete("/rules/{rule_id}")
@@ -127,37 +130,31 @@ async def delete_rule(
         success = rule_store.delete_by_tenant(current_tenant, rule_id)
         if not success:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Rule not found"
+                status_code=ApiConstants.HTTP_404_NOT_FOUND,
+                detail=ApiConstants.RULE_NOT_FOUND
             )
         
         # Log rule deletion
-        log_auth_event(current_tenant, "rule_deleted", {
-            "rule_id": rule_id
+        log_auth_event(current_tenant, FirewallConstants.EVENT_RULE_DELETED, {
+            DatabaseConstants.RULE_ID_FIELD: rule_id
         })
         
-        return {"message": "Rule deleted successfully"}
+        return {DatabaseConstants.MESSAGE_FIELD: ApiConstants.RULE_DELETED_SUCCESSFULLY}
     
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to delete rule: {str(e)}"
+            status_code=ApiConstants.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=ApiConstants.FAILED_TO_DELETE_RULE.format(str(e))
         )
-
-@router.get("/rules/stats", response_model=RuleStats)
-async def get_rule_stats(current_tenant: str = Depends(get_current_tenant)):
-    """Get rule statistics for the current tenant."""
-    stats = rule_store.get_rule_stats(current_tenant)
-    return RuleStats(**stats)
 
 @router.get("/patterns")
 async def get_all_patterns(current_tenant: str = Depends(get_current_tenant)):
     """Get all active detection patterns (built-in + custom rules)."""
     try:
         # Get custom rules from Firestore
-        custom_rules = rule_store.query_by_tenant(current_tenant, {"enabled": True})
+        custom_rules = rule_store.query_by_tenant(current_tenant, {DatabaseConstants.ENABLED_FIELD: True})
         
         # Get built-in patterns from DetectionPatternRegistry
         built_in_patterns = DetectionPatternRegistry.get_all_patterns()
@@ -166,44 +163,44 @@ async def get_all_patterns(current_tenant: str = Depends(get_current_tenant)):
         built_in_list = []
         for pattern in built_in_patterns:
             built_in_list.append({
-                "pattern_id": f"builtin_{pattern.name}",
-                "type": pattern.category.value,
-                "pattern": pattern.pattern.pattern,  # Get regex pattern string
-                "action": pattern.action,
-                "severity": pattern.severity,
-                "confidence": pattern.confidence,
-                "description": pattern.description,
-                "source": "built-in",
-                "enabled": True
+                DatabaseConstants.PATTERN_ID_FIELD: f"builtin_{pattern.name}",
+                DatabaseConstants.TYPE_FIELD: pattern.category.value,
+                DatabaseConstants.PATTERN_VALUE_FIELD: pattern.pattern.pattern,  # Get regex pattern string
+                DatabaseConstants.ACTION_FIELD: pattern.action,
+                DatabaseConstants.SEVERITY_FIELD: pattern.severity,
+                DatabaseConstants.CONFIDENCE_FIELD: pattern.confidence,
+                DatabaseConstants.DESCRIPTION_FIELD: pattern.description,
+                DatabaseConstants.SOURCE_FIELD: DatabaseConstants.BUILT_IN_SOURCE,
+                DatabaseConstants.ENABLED_FIELD: True
             })
         
         # Format custom rules
         custom_list = []
         for rule in custom_rules:
             custom_list.append({
-                "pattern_id": rule.get("rule_id", ""),
-                "type": rule.get("type", ""),
-                "pattern": rule.get("pattern", ""),
-                "action": rule.get("action", ""),
-                "severity": rule.get("severity", ""),
-                "description": rule.get("description", ""),
-                "source": "custom",
-                "enabled": rule.get("enabled", True),
-                "created_at": rule.get("created_at", ""),
-                "updated_at": rule.get("updated_at", "")
+                DatabaseConstants.PATTERN_ID_FIELD: rule.get("rule_id", ""),
+                DatabaseConstants.TYPE_FIELD: rule.get("type", ""),
+                DatabaseConstants.PATTERN_VALUE_FIELD: rule.get("pattern", ""),
+                DatabaseConstants.ACTION_FIELD: rule.get("action", ""),
+                DatabaseConstants.SEVERITY_FIELD: rule.get("severity", ""),
+                DatabaseConstants.DESCRIPTION_FIELD: rule.get("description", ""),
+                DatabaseConstants.SOURCE_FIELD: DatabaseConstants.CUSTOM_SOURCE,
+                DatabaseConstants.ENABLED_FIELD: rule.get(DatabaseConstants.ENABLED_FIELD, True),
+                DatabaseConstants.CREATED_AT_FIELD: rule.get(DatabaseConstants.CREATED_AT_FIELD, ""),
+                DatabaseConstants.UPDATED_AT_FIELD: rule.get(DatabaseConstants.UPDATED_AT_FIELD, "")
             })
         
         return {
-            "built_in_patterns": built_in_list,
-            "custom_rules": custom_list,
-            "total_built_in": len(built_in_list),
-            "total_custom": len(custom_list),
-            "total_active": len(built_in_list) + len(custom_list)
+            DatabaseConstants.BUILT_IN_PATTERNS_FIELD: built_in_list,
+            DatabaseConstants.CUSTOM_RULES_FIELD: custom_list,
+            DatabaseConstants.TOTAL_BUILT_IN_FIELD: len(built_in_list),
+            DatabaseConstants.TOTAL_CUSTOM_FIELD: len(custom_list),
+            DatabaseConstants.TOTAL_ACTIVE_FIELD: len(built_in_list) + len(custom_list)
         }
     
     except Exception as e:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get patterns: {str(e)}"
+            status_code=ApiConstants.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=ApiConstants.FAILED_TO_GET_PATTERNS.format(str(e))
         )
 

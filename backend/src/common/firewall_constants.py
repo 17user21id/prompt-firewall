@@ -2,6 +2,30 @@
 Firewall-related constants for Prompt Firewall MVP.
 """
 
+from enum import Enum
+
+class SeverityLevel(Enum):
+    """Severity levels for detected risks."""
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+    CRITICAL = "critical"
+
+class ActionType(Enum):
+    """Action types for firewall rules."""
+    ALLOW = "allow"
+    BLOCK = "block"
+    REDACT = "redact"
+    WARN = "warn"
+
+class RiskCategoryType(Enum):
+    """Risk category types."""
+    PII = "PII"
+    PHI = "PHI"
+    PCI = "PCI"
+    PROMPT_INJECTION = "PROMPT_INJECTION"
+    CUSTOM = "CUSTOM"
+
 class FirewallConstants:
     """Firewall-related constants."""
     
@@ -35,6 +59,35 @@ class FirewallConstants:
     SEVERITY_MEDIUM = "medium"
     SEVERITY_HIGH = "high"
     SEVERITY_CRITICAL = "critical"
+    
+    # Action Priority (for determining final action)
+    ACTION_PRIORITY_BLOCK = 4
+    ACTION_PRIORITY_REDACT = 3
+    ACTION_PRIORITY_WARN = 2
+    ACTION_PRIORITY_ALLOW = 1
+    
+    # Detection Thresholds
+    INJECTION_DETECTION_THRESHOLD = 0.3
+    INJECTION_SEVERE_THRESHOLD = 0.7
+    INJECTION_MEDIUM_THRESHOLD = 0.5
+    ANOMALY_LENGTH_THRESHOLD_LONG = 1000
+    ANOMALY_LENGTH_THRESHOLD_SHORT = 10
+    ANOMALY_REPETITION_THRESHOLD = 0.5
+    
+    # Default Confidence Values
+    DEFAULT_CONFIDENCE_REGEX = 0.9
+    DEFAULT_CONFIDENCE_CUSTOM = 0.8
+    DEFAULT_CONFIDENCE_OPENAI = 0.5
+    
+    # Redaction Text
+    REDACTED_TEXT = "[REDACTED]"
+    
+    # Risk Type Mapping Keys
+    TYPE_MAPPING_PII = "PII"
+    TYPE_MAPPING_PHI = "PHI"
+    TYPE_MAPPING_PCI = "PCI"
+    TYPE_MAPPING_CUSTOM = "CUSTOM"
+    TYPE_MAPPING_INJECTION = "INJECTION"
     
     # Event Types
     EVENT_PROCESSED = "processed"

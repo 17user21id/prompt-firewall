@@ -1,6 +1,13 @@
 """
 LLM Templates for Prompt Firewall
-Contains all prompt templates used for different LLM interactions.
+
+NOTE: This module is currently not being used in the application but is available
+for future implementation of OpenAI/LLM-based detection capabilities.
+The templates defined here are used by the OpenAIFirewallDetector class to
+generate prompts for various security detection tasks.
+
+These templates can be leveraged when implementing LLM-powered detection
+as an enhancement to the current regex-based detection patterns.
 """
 
 class LLMTemplates:
@@ -238,3 +245,4 @@ Respond with a JSON object:
             "custom_rule_generation",
             "anomaly_detection"
         ]
+

@@ -1,32 +1,16 @@
-import toast, { Toaster } from 'react-hot-toast';
+import { Toaster } from 'react-hot-toast';
+import { TOAST_CONFIG } from '../lib/constants';
 
 export default function Notification() {
   return (
     <Toaster
-      position="top-right"
+      position={TOAST_CONFIG.position}
       toastOptions={{
-        duration: 4000,
-        style: {
-          background: '#363636',
-          color: '#fff',
-        },
-        success: {
-          duration: 3000,
-          iconTheme: {
-            primary: '#10B981',
-            secondary: '#fff',
-          },
-        },
-        error: {
-          duration: 5000,
-          iconTheme: {
-            primary: '#EF4444',
-            secondary: '#fff',
-          },
-        },
-        loading: {
-          duration: Infinity,
-        },
+        duration: TOAST_CONFIG.duration,
+        style: TOAST_CONFIG.style,
+        success: TOAST_CONFIG.success,
+        error: TOAST_CONFIG.error,
+        loading: TOAST_CONFIG.loading,
       }}
     />
   );

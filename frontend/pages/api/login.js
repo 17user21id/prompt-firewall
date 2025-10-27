@@ -13,7 +13,7 @@ export default async function handler(req, res) {
       });
     }
 
-    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/v1/tenants/login`, {
+    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/tenants/login`, {
       method: 'POST',
       headers: { 
         'Content-Type': 'application/json' 

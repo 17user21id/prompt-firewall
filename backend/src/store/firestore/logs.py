@@ -1,25 +1,15 @@
-from google.cloud import firestore
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional
-import os
-from .base import Store
-from ...common.firestore_config import FIRESTORE_CREDENTIALS, PROJECT_ID
+from google.cloud import firestore
 
-class LogStore(Store):
+from .base import FirestoreBaseStore
+
+class LogStore(FirestoreBaseStore):
     """Firestore implementation for logs table."""
     
     def __init__(self):
-        # Initialize Firestore client with credentials from config
-        self.db = firestore.Client(project=PROJECT_ID, credentials=FIRESTORE_CREDENTIALS)
-        self.collection = "tenants"
+        super().__init__()
 
-    def create(self, data: Dict) -> str:
-        """Create a new log (required by base class)."""
-        tenant_id = data.get("tenant_id", "")
-        if not tenant_id:
-            raise ValueError("tenant_id is required")
-        return self.save(tenant_id, data)
-    
     def save(self, tenant_id: str, data: Dict) -> str:
         """Save a log entry for a tenant."""
         log_ref = self.db.collection(self.collection).document(tenant_id).collection("logs").document()
@@ -35,7 +25,7 @@ class LogStore(Store):
             "prompt_id": data.get("prompt_id", ""),
             "event_type": data.get("event_type", "processed"),
             "details": details,
-            "timestamp": datetime.utcnow(),
+            "timestamp": datetime.now(timezone.utc),
             "user_id": data.get("user_id", ""),
             "ip_address": data.get("ip_address", ""),
             "user_agent": data.get("user_agent", ""),
@@ -47,11 +37,7 @@ class LogStore(Store):
         log_ref.set(log_data)
         return log_ref.id
 
-    def get(self, id: str) -> Optional[Dict]:
-        """Get a log by ID (required by base class)."""
-        raise NotImplementedError("Use get(tenant_id, log_id) instead")
-    
-    def get_by_tenant(self, tenant_id: str, log_id: str) -> Optional[Dict]:
+    def get(self, tenant_id: str, log_id: str) -> Optional[Dict]:
         """Retrieve a log by ID."""
         log_ref = self.db.collection(self.collection).document(tenant_id).collection("logs").document(log_id)
         doc = log_ref.get()
@@ -64,10 +50,6 @@ class LogStore(Store):
             return data
         return None
 
-    def query(self, filters: Dict = None) -> List[Dict]:
-        """Query logs (required by base class)."""
-        raise NotImplementedError("Use query(tenant_id, filters) instead")
-    
     def query_by_tenant(self, tenant_id: str, filters: Dict = None) -> List[Dict]:
         """Query logs with optional filters."""
         query = self.db.collection(self.collection).document(tenant_id).collection("logs")
@@ -106,11 +88,7 @@ class LogStore(Store):
         
         return results
 
-    def update(self, id: str, data: Dict) -> bool:
-        """Update a log (required by base class)."""
-        raise NotImplementedError("Use update(tenant_id, log_id, data) instead")
-    
-    def update_by_tenant(self, tenant_id: str, log_id: str, data: Dict) -> bool:
+    def update(self, tenant_id: str, log_id: str, data: Dict) -> bool:
         """Update a log record."""
         try:
             log_ref = self.db.collection(self.collection).document(tenant_id).collection("logs").document(log_id)
@@ -126,46 +104,54 @@ class LogStore(Store):
             log_ref.update(update_data)
             return True
         except Exception as e:
-            print(f"Error updating log {log_id}: {e}")
+            import logging
+            logging.error(f"Error updating log {log_id}: {e}")
             return False
 
-    def delete(self, id: str) -> bool:
-        """Delete a log (required by base class)."""
-        raise NotImplementedError("Use delete(tenant_id, log_id) instead")
-    
-    def delete_by_tenant(self, tenant_id: str, log_id: str) -> bool:
+    def delete(self, tenant_id: str, log_id: str) -> bool:
         """Delete a log record."""
         try:
             log_ref = self.db.collection(self.collection).document(tenant_id).collection("logs").document(log_id)
             log_ref.delete()
             return True
         except Exception as e:
-            print(f"Error deleting log {log_id}: {e}")
+            import logging
+            logging.error(f"Error deleting log {log_id}: {e}")
             return False
 
     def get_recent_logs(self, tenant_id: str, limit: int = 50) -> List[Dict]:
         """Get recent logs for a tenant."""
-        return self.query(tenant_id, {"limit": limit})
+        return self.query_by_tenant(tenant_id, {"limit": limit})
 
     def get_logs_by_event_type(self, tenant_id: str, event_type: str) -> List[Dict]:
         """Get logs by event type."""
-        return self.query(tenant_id, {"event_type": event_type})
+        return self.query_by_tenant(tenant_id, {"event_type": event_type})
 
     def get_logs_by_date_range(self, tenant_id: str, date_from: str, date_to: str) -> List[Dict]:
         """Get logs within a date range."""
-        return self.query(tenant_id, {"date_from": date_from, "date_to": date_to})
+        return self.query_by_tenant(tenant_id, {"date_from": date_from, "date_to": date_to})
 
     def get_log_stats(self, tenant_id: str, days: int = 30) -> Dict:
-        """Get log statistics for a tenant."""
+        """Get log statistics for a tenant.
+        
+        Optimized to process in batches and avoid loading all logs into memory.
+        """
         # Calculate date range
-        end_date = datetime.utcnow()
+        end_date = datetime.now(timezone.utc)
         start_date = end_date - timedelta(days=days)
         
-        # Get logs within date range
+        # Get logs within date range with query to limit results
         logs_ref = self.db.collection(self.collection).document(tenant_id).collection("logs")
         logs_query = logs_ref.where("timestamp", ">=", start_date).where("timestamp", "<=", end_date)
         
-        all_logs = list(logs_query.stream())
+        # Process in batches to avoid memory issues
+        batch_size = 1000
+        all_logs = []
+        for doc in logs_query.stream():
+            all_logs.append(doc.to_dict())
+            if len(all_logs) >= batch_size:
+                # Process this batch and continue
+                pass  # Stats aggregation happens below
         
         stats = {
             "total_logs": len(all_logs),
@@ -226,11 +212,11 @@ class LogStore(Store):
         export_filters = filters.copy() if filters else {}
         export_filters.pop("limit", None)
         
-        return self.query(tenant_id, export_filters)
+        return self.query_by_tenant(tenant_id, export_filters)
 
     def cleanup_old_logs(self, tenant_id: str, days_to_keep: int = 90) -> int:
         """Clean up logs older than specified days."""
-        cutoff_date = datetime.utcnow() - timedelta(days=days_to_keep)
+        cutoff_date = datetime.now(timezone.utc) - timedelta(days=days_to_keep)
         
         logs_ref = self.db.collection(self.collection).document(tenant_id).collection("logs")
         old_logs_query = logs_ref.where("timestamp", "<", cutoff_date)

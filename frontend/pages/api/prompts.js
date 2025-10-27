@@ -1,7 +1,7 @@
 export default async function handler(req, res) {
   if (req.method === 'GET') {
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/v1/prompts${req.url.replace('/api/prompts', '')}`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/v1/prompts${req.url.replace('/api/prompts', '')}`, {
         headers: { 
           'Authorization': req.headers.authorization 
         },

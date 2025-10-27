@@ -1,16 +1,16 @@
 from google.cloud import firestore
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional
 import os
-from .base import Store
-from ...common.firestore_config import FIRESTORE_CREDENTIALS, PROJECT_ID
+from .base import FirestoreBaseStore as Store
+from .config import FIRESTORE_CREDENTIALS, PROJECT_ID
 
 class PromptStore(Store):
     """Firestore implementation for prompts table."""
     
     def __init__(self):
-        # Initialize Firestore client with credentials from config
-        self.db = firestore.Client(project=PROJECT_ID, credentials=FIRESTORE_CREDENTIALS)
+        # Use shared client from base class
+        super().__init__()
         self.collection = "tenants"
 
     def create(self, data: Dict) -> str:
@@ -135,15 +135,27 @@ class PromptStore(Store):
             print(f"Error deleting prompt {prompt_id}: {e}")
             return False
 
-    def get_prompt_stats(self, tenant_id: str) -> Dict:
-        """Get prompt statistics for a tenant."""
+    def get_prompt_stats(self, tenant_id: str, days: int = 30) -> Dict:
+        """Get prompt statistics for a tenant.
+        
+        Optimized to only query recent prompts to avoid full collection scans.
+        
+        Args:
+            tenant_id: Tenant ID
+            days: Number of days to look back (default 30)
+            
+        Returns:
+            Dictionary with prompt statistics
+        """
+        # Only query recent prompts to avoid full collection scans
+        cutoff_date = datetime.now(timezone.utc) - timedelta(days=days)
         prompts_ref = self.db.collection(self.collection).document(tenant_id).collection("prompts")
         
-        # Get all prompts
-        all_prompts = list(prompts_ref.stream())
+        # Query with date filter to limit scope
+        query = prompts_ref.where("timestamp", ">=", cutoff_date)
         
         stats = {
-            "total_prompts": len(all_prompts),
+            "total_prompts": 0,
             "blocked_prompts": 0,
             "redacted_prompts": 0,
             "warned_prompts": 0,
@@ -153,34 +165,63 @@ class PromptStore(Store):
             "avg_anomaly_score": 0.0
         }
         
-        if all_prompts:
-            total_score = 0
-            for doc in all_prompts:
-                data = doc.to_dict()
-                decision = data.get("decision", "allow")
-                
-                if decision == "block":
-                    stats["blocked_prompts"] += 1
-                elif decision == "redact":
-                    stats["redacted_prompts"] += 1
-                elif decision == "warn":
-                    stats["warned_prompts"] += 1
-                else:
-                    stats["allowed_prompts"] += 1
-                
-                # Count risk types
-                risks = data.get("risks", [])
-                for risk in risks:
-                    risk_type = risk.get("type", "").lower()
-                    if "pii" in risk_type:
-                        stats["pii_detections"] += 1
-                    elif "injection" in risk_type:
-                        stats["injection_detections"] += 1
-                
-                # Calculate average anomaly score
-                total_score += data.get("anomaly_score", 0.0)
+        # Fetch documents with limited batch size to avoid memory issues
+        batch_size = 1000
+        docs = []
+        for doc in query.stream():
+            docs.append(doc.to_dict())
+            if len(docs) >= batch_size:
+                # Process batch
+                for data in docs:
+                    decision = data.get("decision", "allow")
+                    if decision == "block":
+                        stats["blocked_prompts"] += 1
+                    elif decision == "redact":
+                        stats["redacted_prompts"] += 1
+                    elif decision == "warn":
+                        stats["warned_prompts"] += 1
+                    else:
+                        stats["allowed_prompts"] += 1
+                    
+                    # Count risk types
+                    risks = data.get("risks", [])
+                    for risk in risks:
+                        risk_type = risk.get("type", "").lower()
+                        if "pii" in risk_type:
+                            stats["pii_detections"] += 1
+                        elif "injection" in risk_type:
+                            stats["injection_detections"] += 1
+                    
+                    stats["avg_anomaly_score"] += data.get("anomaly_score", 0.0)
+                # Reset for next batch
+                docs = []
+        
+        # Process remaining docs
+        for data in docs:
+            decision = data.get("decision", "allow")
+            if decision == "block":
+                stats["blocked_prompts"] += 1
+            elif decision == "redact":
+                stats["redacted_prompts"] += 1
+            elif decision == "warn":
+                stats["warned_prompts"] += 1
+            else:
+                stats["allowed_prompts"] += 1
             
-            stats["avg_anomaly_score"] = total_score / len(all_prompts)
+            risks = data.get("risks", [])
+            for risk in risks:
+                risk_type = risk.get("type", "").lower()
+                if "pii" in risk_type:
+                    stats["pii_detections"] += 1
+                elif "injection" in risk_type:
+                    stats["injection_detections"] += 1
+            
+            stats["avg_anomaly_score"] += data.get("anomaly_score", 0.0)
+        
+        stats["total_prompts"] = stats["blocked_prompts"] + stats["redacted_prompts"] + stats["warned_prompts"] + stats["allowed_prompts"]
+        
+        if stats["total_prompts"] > 0:
+            stats["avg_anomaly_score"] /= stats["total_prompts"]
         
         return stats
 
@@ -196,5 +237,44 @@ class PromptStore(Store):
             if 'timestamp' in data:
                 data['timestamp'] = data['timestamp'].isoformat()
             results.append(data)
+        
+        return results
+    
+    def get_batch(self, tenant_id: str, prompt_ids: List[str]) -> Dict[str, Dict]:
+        """Batch fetch multiple prompts by their IDs.
+        
+        Args:
+            tenant_id: Tenant ID
+            prompt_ids: List of prompt IDs to fetch
+            
+        Returns:
+            Dictionary mapping prompt_id to prompt data
+        """
+        if not prompt_ids:
+            return {}
+        
+        # Remove duplicates
+        prompt_ids = list(set(prompt_ids))
+        
+        # Fetch documents in batch
+        prompts_ref = self.db.collection(self.collection).document(tenant_id).collection("prompts")
+        results = {}
+        
+        # Firestore batch get (up to 10 docs at a time per Firestore limits)
+        batch_size = 10
+        for i in range(0, len(prompt_ids), batch_size):
+            batch_ids = prompt_ids[i:i+batch_size]
+            # Get references for this batch
+            refs = [prompts_ref.document(prompt_id) for prompt_id in batch_ids]
+            
+            # Batch get
+            docs = self.db.get_all(refs)
+            for doc in docs:
+                if doc.exists:
+                    data = doc.to_dict()
+                    # Convert Firestore timestamp to ISO string
+                    if 'timestamp' in data:
+                        data['timestamp'] = data['timestamp'].isoformat()
+                    results[doc.id] = data
         
         return results

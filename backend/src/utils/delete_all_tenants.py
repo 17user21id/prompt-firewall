@@ -11,11 +11,11 @@ import os
 import time
 from typing import Dict, List, Optional
 
-# Add src to path so we can import modules
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+# Fix imports for running as script
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
 from src.store.firestore.tenants import TenantStore
-from src.common.firestore_config import FIRESTORE_CREDENTIALS, PROJECT_ID
+from src.store.firestore.config import FIRESTORE_CREDENTIALS, PROJECT_ID
 from google.cloud import firestore
 
 
@@ -303,3 +303,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+

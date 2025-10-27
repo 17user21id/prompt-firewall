@@ -1,9 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import toast from 'react-hot-toast';
-import Link from 'next/link';
-import { getSession, clearSession } from '../lib/session';
+import { getSession } from '../lib/session';
+import { fetchLogs, fetchRules } from '../lib/apiHelpers';
+import { calculateStats } from '../lib/utils';
+import { ERROR_MESSAGES } from '../lib/constants';
+import { LoadingSpinner } from '../components/common';
 import LogTable from '../components/LogTable';
+import Badge from '../components/common/Badge';
 
 export default function Dashboard() {
   const router = useRouter();
@@ -19,11 +23,10 @@ export default function Dashboard() {
   });
 
   useEffect(() => {
-    // Check if user is logged in and session is valid
     const session = getSession();
     
     if (!session) {
-      toast.error('Session expired. Please login again.');
+      toast.error(ERROR_MESSAGES.SESSION_EXPIRED);
       router.push('/login');
       return;
     }
@@ -35,72 +38,24 @@ export default function Dashboard() {
   const loadData = async (tenantId, apiKey) => {
     setLoading(true);
     try {
-      // Load logs
-      const logsResponse = await fetch(`/api/logs?tenant_id=${tenantId}`, {
-        headers: {
-          'Authorization': `Bearer ${tenantId}:${apiKey}`
-        }
-      });
+      const [logsData, rulesData] = await Promise.all([
+        fetchLogs(tenantId, apiKey),
+        fetchRules(tenantId, apiKey)
+      ]);
       
-      if (logsResponse.ok) {
-        const logsData = await logsResponse.json();
-        // API returns array directly
-        setLogs(Array.isArray(logsData) ? logsData : logsData.logs || []);
-        calculateStats(Array.isArray(logsData) ? logsData : logsData.logs || []);
-      }
-      
-      // Load rules
-      const rulesResponse = await fetch(`/api/rules?tenant_id=${tenantId}`, {
-        headers: {
-          'Authorization': `Bearer ${tenantId}:${apiKey}`
-        }
-      });
-      
-      if (rulesResponse.ok) {
-        const rulesData = await rulesResponse.json();
-        // API returns array directly
-        setRules(Array.isArray(rulesData) ? rulesData : rulesData.rules || []);
-      }
+      setLogs(logsData);
+      setRules(rulesData);
+      setStats(calculateStats(logsData));
     } catch (error) {
       console.error('Error loading data:', error);
-      toast.error('Failed to load dashboard data');
+      toast.error(error.message || ERROR_MESSAGES.API_ERROR);
     } finally {
       setLoading(false);
     }
   };
 
-  const calculateStats = (logData) => {
-    const stats = {
-      totalPrompts: logData.length,
-      blockedPrompts: 0,
-      redactedPrompts: 0,
-      allowedPrompts: 0
-    };
-    
-    logData.forEach(log => {
-      if (log.event_type === 'blocked') {
-        stats.blockedPrompts++;
-      } else if (log.event_type === 'redacted' || log.event_type === 'warned') {
-        stats.redactedPrompts++;
-      } else if (log.event_type === 'processed') {
-        stats.allowedPrompts++;
-      }
-    });
-    
-    setStats(stats);
-  };
-
-  const handleLogout = () => {
-    clearSession();
-    router.push('/login');
-  };
-
   if (loading || !tenantInfo) {
-    return (
-      <div className="min-h-screen flex items-center justify-center animate-fade-in">
-        <div className="spinner"></div>
-      </div>
-    );
+    return <LoadingSpinner message="Loading dashboard..." />;
   }
 
   return (
@@ -156,20 +111,8 @@ export default function Dashboard() {
                       <p className="text-sm text-gray-600 dark:text-gray-300">{rule.description}</p>
                     </div>
                     <div className="flex items-center space-x-4">
-                      <span className={`px-3 py-1 text-xs rounded-full ${
-                        rule.action === 'block' ? 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300' :
-                        rule.action === 'redact' ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300' :
-                        'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300'
-                      }`}>
-                        {rule.action}
-                      </span>
-                      <span className={`px-3 py-1 text-xs rounded-full ${
-                        rule.severity === 'high' ? 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300' :
-                        rule.severity === 'medium' ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300' :
-                        'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300'
-                      }`}>
-                        {rule.severity}
-                      </span>
+                      <Badge variant={rule.action || 'default'}>{rule.action}</Badge>
+                      <Badge severity={rule.severity}>{rule.severity}</Badge>
                     </div>
                   </div>
                 </div>

@@ -3,6 +3,7 @@ FastAPI main application for Prompt Firewall MVP.
 Simplified main file that uses routers from api/ folder.
 """
 
+import os
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -12,6 +13,8 @@ from datetime import datetime
 from .common.app_constants import AppConstants
 from .common.api_constants import ApiConstants
 from .common.logger import get_logger
+from .common.config_constants import ConfigConstants
+from .common.monitoring_middleware import MetricsMiddleware
 from .models.schemas import ErrorResponse
 from .api.routers import api_router
 
@@ -37,6 +40,11 @@ app.add_middleware(
 logger = get_logger("main")
 logger.info("Prompt Firewall API starting up")
 
+# Add metrics middleware if enabled
+if os.getenv(ConfigConstants.ENABLE_METRICS_COLLECTION_ENV, "false").lower() == "true":
+    app.add_middleware(MetricsMiddleware)
+    logger.info("Metrics collection enabled")
+
 # Global exception handler
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
@@ -50,8 +58,8 @@ async def global_exception_handler(request: Request, exc: Exception):
         ).dict()
     )
 
-# Include API routers
-app.include_router(api_router)
+# Include API routers with /api prefix
+app.include_router(api_router, prefix="/api")
 
 # Custom OpenAPI schema
 def custom_openapi():

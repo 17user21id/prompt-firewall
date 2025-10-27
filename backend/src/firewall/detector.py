@@ -4,7 +4,7 @@ Combines multiple detection methods for comprehensive security analysis.
 """
 
 import re
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 from .injection_detection import (
     detect_prompt_injection_using_heuristic_on_input,
     detect_pii_patterns,
@@ -17,8 +17,12 @@ from .detection_patterns import (
     RiskCategory,
     categorize_risk_type
 )
-# HybridFirewallDetector will be imported when needed to avoid circular imports
-from .openai_detector import OpenAIFirewallDetector
+from ..common.firewall_constants import (
+    FirewallConstants,
+    SeverityLevel,
+    ActionType
+)
+from ..common.regex_constants import RegexConstants
 
 class FirewallDetector:
     """Detects PII and prompt injections in user input."""
@@ -30,39 +34,39 @@ class FirewallDetector:
         # Enhanced PII patterns
         self.pii_patterns = {
             "email": {
-                "pattern": r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}",
-                "severity": "high",
-                "action": "redact"
+                "pattern": RegexConstants.EMAIL_PATTERN,
+                "severity": SeverityLevel.HIGH.value,
+                "action": ActionType.REDACT.value
             },
             "ssn": {
-                "pattern": r"\b\d{3}-\d{2}-\d{4}\b",
-                "severity": "high",
-                "action": "block"
+                "pattern": RegexConstants.SSN_PATTERN_VARIANT,
+                "severity": SeverityLevel.HIGH.value,
+                "action": ActionType.BLOCK.value
             },
             "phone": {
-                "pattern": r"\b\d{3}-\d{3}-\d{4}\b|\b\(\d{3}\)\s*\d{3}-\d{4}\b",
-                "severity": "medium",
-                "action": "redact"
+                "pattern": RegexConstants.PHONE_PATTERN_ENHANCED,
+                "severity": SeverityLevel.MEDIUM.value,
+                "action": ActionType.REDACT.value
             },
             "credit_card": {
-                "pattern": r"\b\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}\b",
-                "severity": "high",
-                "action": "block"
+                "pattern": RegexConstants.CREDIT_CARD_PATTERN_VARIANT,
+                "severity": SeverityLevel.HIGH.value,
+                "action": ActionType.BLOCK.value
             },
             "ip_address": {
-                "pattern": r"\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b",
-                "severity": "medium",
-                "action": "warn"
+                "pattern": RegexConstants.IP_ADDRESS_PATTERN_ENHANCED,
+                "severity": SeverityLevel.MEDIUM.value,
+                "action": ActionType.WARN.value
             },
             "url": {
-                "pattern": r"https?://[^\s]+",
-                "severity": "low",
-                "action": "warn"
+                "pattern": RegexConstants.URL_PATTERN,
+                "severity": SeverityLevel.LOW.value,
+                "action": ActionType.WARN.value
             },
             "medical_record": {
-                "pattern": r"\b(patient|medical|diagnosis|treatment|prescription|doctor|physician)\b",
-                "severity": "high",
-                "action": "block"
+                "pattern": RegexConstants.MEDICAL_RECORD_GENERAL_PATTERN,
+                "severity": SeverityLevel.HIGH.value,
+                "action": ActionType.BLOCK.value
             }
         }
 
@@ -84,7 +88,7 @@ class FirewallDetector:
                     "end": match.end(),
                     "severity": severity,
                     "action": action,
-                    "confidence": 0.9  # High confidence for regex matches
+                    "confidence": FirewallConstants.DEFAULT_CONFIDENCE_REGEX
                 })
         
         return risks
@@ -93,12 +97,20 @@ class FirewallDetector:
         """Detect prompt injections using heuristic method."""
         score = detect_prompt_injection_using_heuristic_on_input(prompt)
         
-        if score > 0.3:  # Lower threshold for detection
-            severity = "high" if score > 0.7 else "medium" if score > 0.5 else "low"
-            action = "block" if score > 0.7 else "warn"
+        # Use constants for thresholds
+        if score > FirewallConstants.INJECTION_DETECTION_THRESHOLD:
+            if score > FirewallConstants.INJECTION_SEVERE_THRESHOLD:
+                severity = SeverityLevel.HIGH.value
+                action = ActionType.BLOCK.value
+            elif score > FirewallConstants.INJECTION_MEDIUM_THRESHOLD:
+                severity = SeverityLevel.MEDIUM.value
+                action = ActionType.WARN.value
+            else:
+                severity = SeverityLevel.LOW.value
+                action = ActionType.WARN.value
             
             return [{
-                "type": "INJECTION",
+                "type": FirewallConstants.RISK_TYPE_INJECTION,
                 "match": prompt[:100] + "..." if len(prompt) > 100 else prompt,
                 "severity": severity,
                 "action": action,
@@ -284,24 +296,24 @@ class FirewallDetector:
     def _determine_decision(self, risks: List[Dict]) -> str:
         """Determine the overall decision based on detected risks."""
         if not risks:
-            return "allow"
+            return ActionType.ALLOW.value
         
         # Check for blocking risks
-        blocking_risks = [r for r in risks if r.get("action") == "block"]
+        blocking_risks = [r for r in risks if r.get("action") == ActionType.BLOCK.value]
         if blocking_risks:
-            return "block"
+            return ActionType.BLOCK.value
         
         # Check for redaction risks
-        redaction_risks = [r for r in risks if r.get("action") == "redact"]
+        redaction_risks = [r for r in risks if r.get("action") == ActionType.REDACT.value]
         if redaction_risks:
-            return "redact"
+            return ActionType.REDACT.value
         
         # Check for warning risks
-        warning_risks = [r for r in risks if r.get("action") == "warn"]
+        warning_risks = [r for r in risks if r.get("action") == ActionType.WARN.value]
         if warning_risks:
-            return "warn"
+            return ActionType.WARN.value
         
-        return "allow"
+        return ActionType.ALLOW.value
 
     def _calculate_confidence(self, risks: List[Dict]) -> float:
         """Calculate overall confidence in the detection."""
@@ -314,27 +326,31 @@ class FirewallDetector:
     def _calculate_overall_severity(self, risks: List[Dict]) -> str:
         """Calculate overall severity based on detected risks."""
         if not risks:
-            return "low"
+            return SeverityLevel.LOW.value
         
         # Get all severities
-        severities = [r.get("severity", "low") for r in risks]
+        severities = [r.get("severity", SeverityLevel.LOW.value) for r in risks]
         
         # Count severities
-        severity_counts = {"critical": 0, "high": 0, "medium": 0, "low": 0}
+        severity_counts = {
+            SeverityLevel.CRITICAL.value: 0, 
+            SeverityLevel.HIGH.value: 0, 
+            SeverityLevel.MEDIUM.value: 0, 
+            SeverityLevel.LOW.value: 0
+        }
         for severity in severities:
             if severity in severity_counts:
                 severity_counts[severity] += 1
         
-        # Determine overall severity
-        # Critical takes precedence
-        if severity_counts["critical"] > 0:
-            return "critical"
-        elif severity_counts["high"] > 0:
-            return "high"
-        elif severity_counts["medium"] > 0:
-            return "medium"
+        # Determine overall severity - Critical takes precedence
+        if severity_counts[SeverityLevel.CRITICAL.value] > 0:
+            return SeverityLevel.CRITICAL.value
+        elif severity_counts[SeverityLevel.HIGH.value] > 0:
+            return SeverityLevel.HIGH.value
+        elif severity_counts[SeverityLevel.MEDIUM.value] > 0:
+            return SeverityLevel.MEDIUM.value
         else:
-            return "low"
+            return SeverityLevel.LOW.value
     
     def _get_detected_categories(self, risks: List[Dict]) -> List[str]:
         """Get list of unique risk categories detected."""
@@ -351,7 +367,7 @@ class FirewallDetector:
             return text
         
         # Sort risks by position (end to start) to avoid index shifting
-        redaction_risks = [r for r in risks if r.get("action") == "redact"]
+        redaction_risks = [r for r in risks if r.get("action") == ActionType.REDACT.value]
         redaction_risks.sort(key=lambda x: x.get("end", 0), reverse=True)
         
         redacted_text = text
@@ -362,7 +378,7 @@ class FirewallDetector:
             match = risk.get("match", "")
             
             if start < end and match:
-                redacted_text = redacted_text[:start] + "[REDACTED]" + redacted_text[end:]
+                redacted_text = redacted_text[:start] + FirewallConstants.REDACTED_TEXT + redacted_text[end:]
         
         return redacted_text
 

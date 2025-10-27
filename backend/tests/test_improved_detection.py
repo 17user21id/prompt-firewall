@@ -2,7 +2,6 @@
 Test script to verify improved detection capabilities
 """
 from src.firewall.detector import FirewallDetector
-from src.firewall.detection_patterns import DetectionPatternRegistry
 
 # Test prompts from user's examples
 test_prompts = [
@@ -32,10 +31,6 @@ def test_detection():
     """Test detection on example prompts"""
     detector = FirewallDetector()
     
-    print("=" * 80)
-    print("Testing Enhanced Detection System")
-    print("=" * 80)
-    
     results = []
     
     for prompt, expected_categories in test_prompts:
@@ -48,8 +43,6 @@ def test_detection():
         # Check if any expected category was detected
         match = any(cat in detected_categories for cat in expected_categories)
         
-        status = "✓" if match else "✗"
-        
         results.append({
             "prompt": prompt[:60] + "..." if len(prompt) > 60 else prompt,
             "expected": expected_categories,
@@ -58,30 +51,13 @@ def test_detection():
             "risks": risks_count,
             "match": match
         })
-        
-        print(f"\n{status} Prompt: {prompt[:60]}...")
-        print(f"   Expected categories: {expected_categories}")
-        print(f"   Detected categories: {detected_categories}")
-        print(f"   Severity: {severity}")
-        print(f"   Total risks detected: {risks_count}")
     
-    # Summary
-    print("\n" + "=" * 80)
-    print("SUMMARY")
-    print("=" * 80)
+    # Summary assertions
     matched = sum(1 for r in results if r["match"])
     total = len(results)
-    print(f"Detected correctly: {matched}/{total} ({matched*100/total:.1f}%)")
     
-    # Show issues
-    issues = [r for r in results if not r["match"]]
-    if issues:
-        print(f"\nFailed to detect: {len(issues)} prompts")
-        for issue in issues:
-            print(f"  - {issue['prompt']}")
-            print(f"    Expected: {issue['expected']}, Got: {issue['detected']}")
-    
-    return results
+    # Assert that at least 70% of tests pass
+    assert matched >= total * 0.7, f"Only {matched}/{total} ({matched*100/total:.1f}%) tests passed"
 
 if __name__ == "__main__":
     test_detection()

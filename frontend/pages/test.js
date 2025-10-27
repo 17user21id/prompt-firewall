@@ -4,6 +4,9 @@ import Link from 'next/link';
 import ResultDisplay from '../components/ResultDisplay';
 import toast from 'react-hot-toast';
 import { getSession, clearSession } from '../lib/session';
+import { processPrompt } from '../lib/apiHelpers';
+import { LoadingSpinner } from '../components/common';
+import { ERROR_MESSAGES, SUCCESS_MESSAGES, INFO_MESSAGES } from '../lib/constants';
 
 export default function TestPage() {
   const router = useRouter();
@@ -12,11 +15,10 @@ export default function TestPage() {
   const [tenantInfo, setTenantInfo] = useState(null);
 
   useEffect(() => {
-    // Check if user is logged in and session is valid
     const session = getSession();
     
     if (!session) {
-      toast.error('Session expired. Please login again.');
+      toast.error(ERROR_MESSAGES.SESSION_EXPIRED);
       router.push('/login');
       return;
     }
@@ -26,7 +28,7 @@ export default function TestPage() {
 
   const handleSubmit = async (prompt) => {
     if (!tenantInfo) {
-      toast.error('Not logged in');
+      toast.error(ERROR_MESSAGES.NOT_LOGGED_IN);
       return;
     }
 
@@ -34,34 +36,13 @@ export default function TestPage() {
     setResult(null);
     
     try {
-      const res = await fetch('/api/query', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${tenantInfo.tenant_id}:${tenantInfo.api_key}`,
-        },
-        body: JSON.stringify({ 
-          tenant_id: tenantInfo.tenant_id, 
-          prompt,
-          metadata: {
-            source: 'demo-ui',
-            timestamp: new Date().toISOString()
-          }
-        }),
-      });
-      
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.detail || 'Failed to process prompt');
-      }
-      
-      const data = await res.json();
+      const data = await processPrompt(tenantInfo.tenant_id, tenantInfo.api_key, prompt);
       setResult(data);
       
       if (data.decision !== 'allow') {
         toast.error(`Prompt ${data.decision}: ${data.explanation || 'Risk detected'}`);
       } else {
-        toast.success('Prompt processed successfully');
+        toast.success(SUCCESS_MESSAGES.PROMPT_PROCESSED);
       }
     } catch (error) {
       console.error('Error processing prompt:', error);
@@ -72,11 +53,7 @@ export default function TestPage() {
   };
 
   if (!tenantInfo) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="spinner"></div>
-      </div>
-    );
+    return <LoadingSpinner message={INFO_MESSAGES.LOADING} />;
   }
 
   return (
@@ -145,16 +122,7 @@ export default function TestPage() {
         <SimplePromptForm onSubmit={handleSubmit} />
 
         {/* Loading State */}
-        {loading && (
-          <div className="card animate-fade-in">
-            <div className="flex items-center justify-center py-12">
-              <div className="flex items-center space-x-3">
-                <div className="spinner"></div>
-                <span className="text-gray-600 dark:text-gray-300">Analyzing prompt for security risks...</span>
-              </div>
-            </div>
-          </div>
-        )}
+        {loading && <LoadingSpinner message={INFO_MESSAGES.ANALYZING} />}
 
         {/* Results */}
         {result && <div className="animate-fade-in"><ResultDisplay result={result} /></div>}
@@ -194,12 +162,18 @@ export default function TestPage() {
 function SimplePromptForm({ onSubmit }) {
   const [prompt, setPrompt] = useState('');
   const [loading, setLoading] = useState(false);
+  const VALIDATION_MESSAGES = {
+    PROMPT_REQUIRED: 'Please enter a prompt'
+  };
+  const ERROR_MESSAGES = {
+    PROMPT_PROCESS_FAILED: 'Failed to process prompt'
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     
     if (!prompt.trim()) {
-      toast.error('Please enter a prompt');
+      toast.error(VALIDATION_MESSAGES.PROMPT_REQUIRED);
       return;
     }
     
@@ -208,7 +182,7 @@ function SimplePromptForm({ onSubmit }) {
       await onSubmit(prompt);
       setPrompt('');
     } catch (error) {
-      toast.error('Error processing prompt');
+      toast.error(error.message || ERROR_MESSAGES.PROMPT_PROCESS_FAILED);
     } finally {
       setLoading(false);
     }
@@ -245,11 +219,11 @@ function SimplePromptForm({ onSubmit }) {
           >
             {loading ? (
               <>
-                <div className="spinner"></div>
+                <div className="spinner w-4 h-4"></div>
                 <span>Processing...</span>
               </>
             ) : (
-              <span>Analyze Prompt</span>
+              'Analyze Prompt'
             )}
           </button>
         </div>

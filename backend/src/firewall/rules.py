@@ -3,29 +3,36 @@ FirewallRules - Rule application engine for processing detected risks.
 Applies tenant-specific rules and policies to determine final actions.
 """
 
-from typing import Dict, List, Any, Optional
-from datetime import datetime
+from typing import Dict, List, Any
+from datetime import datetime, timezone
 import re
+
+from ..common.firewall_constants import (
+    FirewallConstants, 
+    SeverityLevel, 
+    ActionType
+)
 
 class FirewallRules:
     """Applies rules to determine firewall actions."""
     
     def __init__(self):
+        from ..common.firewall_constants import ActionType
         self.default_actions = {
-            "block": ["block", "deny", "reject"],
-            "redact": ["redact", "mask", "hide", "remove"],
-            "warn": ["warn", "alert", "notify"],
-            "allow": ["allow", "permit", "pass"]
+            ActionType.BLOCK.value: [ActionType.BLOCK.value, "deny", "reject"],
+            ActionType.REDACT.value: [ActionType.REDACT.value, "mask", "hide", "remove"],
+            ActionType.WARN.value: [ActionType.WARN.value, "alert", "notify"],
+            ActionType.ALLOW.value: [ActionType.ALLOW.value, "permit", "pass"]
         }
 
     def apply(self, prompt: str, risks: List[Dict], rules: List[Dict]) -> Dict:
         """Apply tenant-specific rules to the prompt and detected risks."""
         if not risks:
             return {
-                "action": "allow",
+                "action": ActionType.ALLOW.value,
                 "modified": prompt,
                 "risks": [],
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "reason": "No risks detected",
                 "applied_rules": []
             }
@@ -34,15 +41,15 @@ class FirewallRules:
         sorted_rules = self._sort_rules_by_priority(rules)
         
         # Apply rules to determine final action
-        final_action = "allow"
+        final_action = ActionType.ALLOW.value
         modified_prompt = prompt
         applied_rules = []
         reason_parts = []
         
         for risk in risks:
             risk_type = risk.get("type", "")
-            risk_severity = risk.get("severity", "low")
-            risk_action = risk.get("action", "warn")
+            risk_severity = risk.get("severity", SeverityLevel.LOW.value)
+            risk_action = risk.get("action", ActionType.WARN.value)
             
             # Find applicable rules for this risk
             applicable_rules = self._find_applicable_rules(risk, sorted_rules)
@@ -57,13 +64,13 @@ class FirewallRules:
                 final_action = self._update_action(final_action, rule_action)
                 
                 # Apply rule-specific modifications
-                if rule_action == "redact":
+                if rule_action == ActionType.REDACT.value:
                     modified_prompt = self._apply_redaction(modified_prompt, risk)
                     reason_parts.append(f"Redacted {risk_type}: {risk.get('match', '')}")
-                elif rule_action == "block":
+                elif rule_action == ActionType.BLOCK.value:
                     modified_prompt = ""
                     reason_parts.append(f"Blocked {risk_type}: {risk.get('match', '')}")
-                elif rule_action == "warn":
+                elif rule_action == ActionType.WARN.value:
                     reason_parts.append(f"Warning for {risk_type}: {risk.get('match', '')}")
                 
                 applied_rules.append({
@@ -78,13 +85,13 @@ class FirewallRules:
                 # Use default risk action
                 final_action = self._update_action(final_action, risk_action)
                 
-                if risk_action == "redact":
+                if risk_action == ActionType.REDACT.value:
                     modified_prompt = self._apply_redaction(modified_prompt, risk)
                     reason_parts.append(f"Redacted {risk_type}: {risk.get('match', '')}")
-                elif risk_action == "block":
+                elif risk_action == ActionType.BLOCK.value:
                     modified_prompt = ""
                     reason_parts.append(f"Blocked {risk_type}: {risk.get('match', '')}")
-                elif risk_action == "warn":
+                elif risk_action == ActionType.WARN.value:
                     reason_parts.append(f"Warning for {risk_type}: {risk.get('match', '')}")
         
         # Generate final reason - structured format
@@ -94,7 +101,7 @@ class FirewallRules:
             "action": final_action,
             "modified": modified_prompt,
             "risks": risks,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "reason": reason,
             "applied_rules": applied_rules,
             "total_rules_applied": len(applied_rules)
@@ -103,8 +110,13 @@ class FirewallRules:
     def _sort_rules_by_priority(self, rules: List[Dict]) -> List[Dict]:
         """Sort rules by priority (severity and version)."""
         def priority_key(rule):
-            severity_order = {"high": 3, "medium": 2, "low": 1}
-            severity = rule.get("severity", "low")
+            severity_order = {
+                SeverityLevel.CRITICAL.value: 4,
+                SeverityLevel.HIGH.value: 3,
+                SeverityLevel.MEDIUM.value: 2,
+                SeverityLevel.LOW.value: 1
+            }
+            severity = rule.get("severity", SeverityLevel.LOW.value)
             version = rule.get("version", 1)
             enabled = rule.get("enabled", True)
             
@@ -171,7 +183,12 @@ class FirewallRules:
 
     def _update_action(self, current_action: str, new_action: str) -> str:
         """Update action based on priority (block > redact > warn > allow)."""
-        action_priority = {"block": 4, "redact": 3, "warn": 2, "allow": 1}
+        action_priority = {
+            ActionType.BLOCK.value: FirewallConstants.ACTION_PRIORITY_BLOCK,
+            ActionType.REDACT.value: FirewallConstants.ACTION_PRIORITY_REDACT,
+            ActionType.WARN.value: FirewallConstants.ACTION_PRIORITY_WARN,
+            ActionType.ALLOW.value: FirewallConstants.ACTION_PRIORITY_ALLOW
+        }
         
         current_priority = action_priority.get(current_action, 1)
         new_priority = action_priority.get(new_action, 1)
@@ -189,10 +206,10 @@ class FirewallRules:
         
         # Use position-based redaction if available
         if start >= 0 and end > start:
-            return text[:start] + "[REDACTED]" + text[end:]
+            return text[:start] + FirewallConstants.REDACTED_TEXT + text[end:]
         
         # Fallback to string replacement
-        return text.replace(match, "[REDACTED]")
+        return text.replace(match, FirewallConstants.REDACTED_TEXT)
 
     def validate_rule(self, rule: Dict) -> Dict[str, Any]:
         """Validate a rule configuration."""
@@ -206,13 +223,22 @@ class FirewallRules:
                 errors.append(f"Missing required field: {field}")
         
         # Validate action
-        valid_actions = ["block", "redact", "warn", "allow"]
+        valid_actions = [
+            ActionType.BLOCK.value, 
+            ActionType.REDACT.value, 
+            ActionType.WARN.value, 
+            ActionType.ALLOW.value
+        ]
         action = rule.get("action", "")
         if action and action not in valid_actions:
             errors.append(f"Invalid action: {action}. Must be one of {valid_actions}")
         
         # Validate severity
-        valid_severities = ["low", "medium", "high"]
+        valid_severities = [
+            SeverityLevel.LOW.value, 
+            SeverityLevel.MEDIUM.value, 
+            SeverityLevel.HIGH.value
+        ]
         severity = rule.get("severity", "")
         if severity and severity not in valid_severities:
             errors.append(f"Invalid severity: {severity}. Must be one of {valid_severities}")
@@ -247,12 +273,12 @@ class FirewallRules:
         return {
             "type": risk_type,
             "pattern": pattern,
-            "action": action or risk.get("action", "warn"),
-            "severity": severity or risk.get("severity", "medium"),
+            "action": action or risk.get("action", ActionType.WARN.value),
+            "severity": severity or risk.get("severity", SeverityLevel.MEDIUM.value),
             "description": f"Auto-generated rule for {risk_type} detection",
             "enabled": True,
             "version": 1,
-            "created_at": datetime.utcnow().isoformat()
+            "created_at": datetime.now(timezone.utc).isoformat()
         }
 
     def merge_rules(self, existing_rules: List[Dict], new_rules: List[Dict]) -> List[Dict]:
@@ -328,7 +354,7 @@ class FirewallRules:
         if not risks:
             return "No risks detected"
         
-        if action == "allow":
+        if action == ActionType.ALLOW.value:
             return "Prompt processed successfully - no risks detected"
         
         # Group risks by category
@@ -382,7 +408,11 @@ class FirewallRules:
                 categories[primary_category]["matches"].append(truncated_match)
         
         # Build the structured message
-        action_word = "blocked" if action == "block" else "redacted" if action == "redact" else "flagged"
+        action_word = (
+            "blocked" if action == ActionType.BLOCK.value 
+            else "redacted" if action == ActionType.REDACT.value 
+            else "flagged"
+        )
         
         # Collect categories with matches
         found_categories = []

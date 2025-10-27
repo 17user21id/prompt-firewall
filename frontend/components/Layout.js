@@ -3,6 +3,8 @@ import Link from 'next/link';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { getSession, clearSession } from '../lib/session';
+import { DesktopNav, MobileMenuButton, MobileNav } from './Layout/Navigation';
+import { SESSION_CONFIG } from '../lib/constants';
 
 export default function Layout({ children }) {
   const { data: session, status } = useSession();
@@ -20,7 +22,7 @@ export default function Layout({ children }) {
     
     checkTenantSession();
     // Check periodically in case session changes
-    const interval = setInterval(checkTenantSession, 1000);
+    const interval = setInterval(checkTenantSession, SESSION_CONFIG.CHECK_INTERVAL);
     return () => clearInterval(interval);
   }, []);
 
@@ -75,168 +77,31 @@ export default function Layout({ children }) {
             </Link>
 
             {/* Desktop Navigation */}
-            <div className="hidden md:flex items-center space-x-6">
-              <Link 
-                href="/" 
-                className="text-white hover:text-primary-200 transition-colors duration-200 font-medium"
-              >
-                Prompt Test
-              </Link>
-              {isLoggedIn ? (
-                <>
-                  {session && (
-                    <Link 
-                      href="/admin" 
-                      className="text-white hover:text-primary-200 transition-colors duration-200 font-medium"
-                    >
-                      Admin Console
-                    </Link>
-                  )}
-                  <div className="flex items-center space-x-4">
-                    {session && (
-                      <span className="text-primary-200 text-sm">
-                        Welcome, {session.user.name}
-                      </span>
-                    )}
-                    {tenantSession && (
-                      <span className="text-primary-200 text-sm">
-                        {tenantSession.tenantName}
-                      </span>
-                    )}
-                    <button 
-                      onClick={handleLogout}
-                      className="text-white hover:text-primary-200 transition-colors duration-200 font-medium"
-                    >
-                      Logout
-                    </button>
-                  </div>
-                </>
-              ) : (
-                <Link 
-                  href="/login" 
-                  className="text-white hover:text-primary-200 transition-colors duration-200 font-medium"
-                >
-                  Login
-                </Link>
-              )}
-              
-              {/* Dark Mode Toggle */}
-              <button
-                onClick={toggleDarkMode}
-                className="p-2 rounded-lg text-white hover:bg-primary-700 dark:hover:bg-primary-900 transition-colors duration-200"
-                aria-label="Toggle dark mode"
-              >
-                {darkMode ? (
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
-                  </svg>
-                ) : (
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
-                  </svg>
-                )}
-              </button>
-            </div>
+            <DesktopNav 
+              session={session}
+              tenantSession={tenantSession}
+              onLogout={handleLogout}
+              onToggleDarkMode={toggleDarkMode}
+              darkMode={darkMode}
+            />
 
             {/* Mobile menu button */}
-            <div className="md:hidden">
-              <button
-                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                className="text-white hover:text-primary-200 focus:outline-none focus:text-primary-200"
-                aria-label="Toggle mobile menu"
-              >
-                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  {mobileMenuOpen ? (
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  ) : (
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                  )}
-                </svg>
-              </button>
-            </div>
+            <MobileMenuButton 
+              isOpen={mobileMenuOpen}
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            />
           </div>
 
           {/* Mobile Navigation */}
-          {mobileMenuOpen && (
-            <div className="md:hidden bg-primary-700 dark:bg-primary-800 border-t border-primary-500">
-              <div className="px-2 pt-2 pb-3 space-y-1">
-                <Link 
-                  href="/" 
-                  className="block px-3 py-2 text-white hover:text-primary-200 transition-colors duration-200"
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  Prompt Test
-                </Link>
-                {isLoggedIn ? (
-                  <>
-                    {session && (
-                      <Link 
-                        href="/admin" 
-                        className="block px-3 py-2 text-white hover:text-primary-200 transition-colors duration-200"
-                        onClick={() => setMobileMenuOpen(false)}
-                      >
-                        Admin Console
-                      </Link>
-                    )}
-                    <div className="px-3 py-2 border-t border-primary-500">
-                      {session && (
-                        <div className="text-primary-200 text-sm mb-2">
-                          Welcome, {session.user.name}
-                        </div>
-                      )}
-                      {tenantSession && (
-                        <div className="text-primary-200 text-sm mb-2">
-                          {tenantSession.tenantName}
-                        </div>
-                      )}
-                      <button 
-                        onClick={() => {
-                          handleLogout();
-                          setMobileMenuOpen(false);
-                        }}
-                        className="text-white hover:text-primary-200 transition-colors duration-200"
-                      >
-                        Logout
-                      </button>
-                    </div>
-                  </>
-                ) : (
-                  <Link 
-                    href="/login" 
-                    className="block px-3 py-2 text-white hover:text-primary-200 transition-colors duration-200"
-                    onClick={() => setMobileMenuOpen(false)}
-                  >
-                    Login
-                  </Link>
-                )}
-                <div className="px-3 py-2 border-t border-primary-500">
-                  <button
-                    onClick={() => {
-                      toggleDarkMode();
-                      setMobileMenuOpen(false);
-                    }}
-                    className="flex items-center space-x-2 text-white hover:text-primary-200 transition-colors duration-200 w-full"
-                  >
-                    {darkMode ? (
-                      <>
-                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
-                        </svg>
-                        <span>Light Mode</span>
-                      </>
-                    ) : (
-                      <>
-                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
-                        </svg>
-                        <span>Dark Mode</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
+          <MobileNav 
+            isOpen={mobileMenuOpen}
+            session={session}
+            tenantSession={tenantSession}
+            onLogout={handleLogout}
+            onToggleDarkMode={toggleDarkMode}
+            darkMode={darkMode}
+            closeMenu={() => setMobileMenuOpen(false)}
+          />
         </div>
       </nav>
 
@@ -255,24 +120,21 @@ export default function Layout({ children }) {
               © 2024 Prompt Firewall MVP. Built for AI Security.
             </div>
             <div className="flex space-x-6 mt-4 md:mt-0">
-              <a 
-                href="/docs" 
-                className="text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 text-sm transition-colors duration-200"
+              <span 
+                className="text-gray-600 dark:text-gray-400 text-sm cursor-default"
               >
                 Documentation
-              </a>
-              <a 
-                href="/api-docs" 
-                className="text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 text-sm transition-colors duration-200"
+              </span>
+              <span 
+                className="text-gray-600 dark:text-gray-400 text-sm cursor-default"
               >
                 API Reference
-              </a>
-              <a 
-                href="/health" 
-                className="text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 text-sm transition-colors duration-200"
+              </span>
+              <span 
+                className="text-gray-600 dark:text-gray-400 text-sm cursor-default"
               >
                 System Status
-              </a>
+              </span>
             </div>
           </div>
         </div>

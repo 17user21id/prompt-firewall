@@ -1,26 +1,12 @@
 import RiskIndicator from './RiskIndicator';
+import { DECISION_ICONS } from '../lib/constants';
+import { getDecisionColor, formatPercent } from '../lib/utils';
 
 export default function ResultDisplay({ result }) {
   if (!result) return null;
 
-  const getDecisionColor = (decision) => {
-    switch (decision) {
-      case 'allow': return 'decision-allow';
-      case 'block': return 'decision-block';
-      case 'redact': return 'decision-redact';
-      case 'warn': return 'decision-warn';
-      default: return 'bg-gray-50 border-gray-200 text-gray-800';
-    }
-  };
-
   const getDecisionIcon = (decision) => {
-    switch (decision) {
-      case 'allow': return '✅';
-      case 'block': return '🚫';
-      case 'redact': return '🔒';
-      case 'warn': return '⚠️';
-      default: return 'ℹ️';
-    }
+    return DECISION_ICONS[decision] || DECISION_ICONS.info;
   };
 
   return (
@@ -41,7 +27,7 @@ export default function ResultDisplay({ result }) {
           </div>
           <div className="text-right">
             <div className="text-sm font-medium">
-              Confidence: {Math.round((result.confidence || 0.95) * 100)}%
+              Confidence: {formatPercent(result.confidence)}%
             </div>
             {result.processing_time && (
               <div className="text-xs text-gray-500">

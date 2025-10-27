@@ -1,6 +1,22 @@
 """
 Enhanced OpenAI-based Firewall Detector
-Uses OpenAI API for advanced threat detection and analysis.
+
+NOTE: This module is currently not being used in the application but is available
+for future implementation of OpenAI/LLM-based detection capabilities.
+To use this detector, integrate it with the FirewallDetector or create a
+new detection strategy that leverages OpenAI's advanced threat detection.
+
+Currently, the application uses regex-based detection patterns from
+detection_patterns.py. This OpenAI detector can be used for:
+- Advanced prompt injection detection
+- Context-aware PII detection
+- Complex threat analysis beyond regex patterns
+- Multi-layer detection strategies
+
+Usage example:
+    from .openai_detector import OpenAIFirewallDetector
+    detector = OpenAIFirewallDetector(api_key="your-key", model="gpt-4")
+    result = detector.detect_comprehensive(user_input)
 """
 
 import json
@@ -528,3 +544,4 @@ class OpenAIFirewallDetector:
                 "api_key_valid": False,
                 "error": str(e)
             }
+

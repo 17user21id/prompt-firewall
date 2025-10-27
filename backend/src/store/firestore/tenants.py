@@ -4,17 +4,17 @@ from typing import Dict, List, Optional
 import hashlib
 import uuid
 import os
-from .base import Store
+from .base import FirestoreBaseStore as Store
 from ...common.database_constants import DatabaseConstants
 from ...common.auth_constants import AuthConstants
-from ...common.firestore_config import FIRESTORE_CREDENTIALS, PROJECT_ID
+from .config import FIRESTORE_CREDENTIALS, PROJECT_ID
 
 class TenantStore(Store):
     """Firestore implementation for tenants table."""
     
     def __init__(self):
-        # Initialize Firestore client with credentials from config
-        self.db = firestore.Client(project=PROJECT_ID, credentials=FIRESTORE_CREDENTIALS)
+        # Use shared client from base class
+        super().__init__()
         self.collection = DatabaseConstants.TENANTS_COLLECTION
 
     def create(self, data: Dict) -> str:
@@ -59,6 +59,26 @@ class TenantStore(Store):
                 data['updated_at'] = data['updated_at'].isoformat()
             return data
         return None
+
+    def query_by_tenant(self, tenant_id: str, filters: Dict = None) -> List[Dict]:
+        """Query tenants by tenant_id with optional filters."""
+        query = self.db.collection(self.collection).where("tenant_id", "==", tenant_id)
+        
+        if filters:
+            for key, value in filters.items():
+                query = query.where(key, "==", value)
+        
+        results = []
+        for doc in query.stream():
+            data = doc.to_dict()
+            # Convert Firestore timestamps to ISO strings
+            if 'created_at' in data:
+                data['created_at'] = data['created_at'].isoformat()
+            if 'updated_at' in data:
+                data['updated_at'] = data['updated_at'].isoformat()
+            results.append(data)
+        
+        return results
 
     def query(self, tenant_id: str = None, filters: Dict = None) -> List[Dict]:
         """Query tenants with optional filters."""
@@ -144,23 +164,47 @@ class TenantStore(Store):
         return self.query()
 
     def get_tenant_stats(self, tenant_id: str) -> Dict:
-        """Get tenant statistics."""
+        """Get tenant statistics.
+        
+        Optimized to avoid full collection scans by limiting date ranges.
+        """
         tenant = self.get(tenant_id)
         if not tenant:
             return {}
         
-        # Get subcollection counts
+        # Count recent items only (last 30 days) to avoid full collection scans
+        from datetime import timedelta
+        cutoff_date = datetime.utcnow() - timedelta(days=30)
+        
         prompts_ref = self.db.collection(self.collection).document(tenant_id).collection("prompts")
         rules_ref = self.db.collection(self.collection).document(tenant_id).collection("rules")
         logs_ref = self.db.collection(self.collection).document(tenant_id).collection("logs")
+        
+        # Use count queries where possible (Firestore v2 feature)
+        # For older versions, limit the date range
+        try:
+            # Try to get approximate counts (Firestore native feature in v2)
+            prompts_query = prompts_ref.where("timestamp", ">=", cutoff_date)
+            logs_query = logs_ref.where("timestamp", ">=", cutoff_date)
+            
+            # Stream and count (limited to last 30 days)
+            prompts_count = sum(1 for _ in prompts_query.stream())
+            logs_count = sum(1 for _ in logs_query.stream())
+        except Exception:
+            # Fallback: use limited counts
+            prompts_count = sum(1 for _ in prompts_ref.limit(1000).stream())
+            logs_count = sum(1 for _ in logs_ref.limit(1000).stream())
+        
+        # Rules are typically small, so safe to count all
+        rules_count = sum(1 for _ in rules_ref.stream())
         
         stats = {
             "tenant_id": tenant_id,
             "name": tenant.get("name", ""),
             "created_at": tenant.get("created_at"),
-            "prompts_count": len(list(prompts_ref.stream())),
-            "rules_count": len(list(rules_ref.stream())),
-            "logs_count": len(list(logs_ref.stream())),
+            "prompts_count": prompts_count,
+            "rules_count": rules_count,
+            "logs_count": logs_count,
             "status": tenant.get("status", "active")
         }
         

@@ -35,6 +35,7 @@ class ApiConstants:
     FAILED_TO_CREATE_RULE = "Failed to create rule: {}"
     FAILED_TO_UPDATE_RULE = "Failed to update rule: {}"
     FAILED_TO_DELETE_RULE = "Failed to delete rule: {}"
+    FAILED_TO_GET_PATTERNS = "Failed to get patterns: {}"
     LOGIN_FAILED = "Login failed: {}"
     
     # Success Messages
@@ -48,6 +49,9 @@ class ApiConstants:
     INVALID_RULE = "Invalid rule: {}"
     RULE_NOT_FOUND = "Rule not found"
     PROMPT_NOT_FOUND = "Prompt not found"
+    
+    # Feature Messages
+    LOG_EXPORT_COMING_SOON = "Log export feature coming soon"
     
     # Health Check
     HEALTH_STATUS = "healthy"

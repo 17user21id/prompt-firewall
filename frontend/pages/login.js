@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/router';
 import toast from 'react-hot-toast';
 import { setSession } from '../lib/session';
+import { VALIDATION_MESSAGES, ERROR_MESSAGES, SUCCESS_MESSAGES, VALIDATION_MESSAGES as V, INFO_MESSAGES } from '../lib/constants';
 
 export default function Login() {
   const router = useRouter();
@@ -17,13 +18,13 @@ export default function Login() {
     e.preventDefault();
     
     if (!formData.name.trim() || !formData.password.trim()) {
-      toast.error('Please fill all fields');
+      toast.error(VALIDATION_MESSAGES.REQUIRED_FIELDS);
       return;
     }
     
     setLoading(true);
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/v1/tenants/login`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/v1/tenants/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -54,7 +55,7 @@ export default function Login() {
       // Store credentials with 1-hour timeout
       setSession(data.tenant_id, data.api_key, data.name);
       
-      toast.success('Login successful!');
+      toast.success(SUCCESS_MESSAGES.LOGIN_SUCCESS);
       router.push('/dashboard');
     } catch (error) {
       console.error('Error logging in:', error);
@@ -73,13 +74,13 @@ export default function Login() {
     }
     
     if (formData.password.length < 8) {
-      toast.error('Password must be at least 8 characters long');
+      toast.error(VALIDATION_MESSAGES.MIN_PASSWORD_LENGTH);
       return;
     }
     
     setLoading(true);
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/v1/tenants`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/v1/tenants`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -101,7 +102,7 @@ export default function Login() {
       // Store credentials with 1-hour timeout
       setSession(data.tenant_id, data.api_key, data.name);
       
-      toast.success('Tenant created successfully!');
+      toast.success(SUCCESS_MESSAGES.TENANT_CREATED);
       router.push('/dashboard');
     } catch (error) {
       console.error('Error creating tenant:', error);
