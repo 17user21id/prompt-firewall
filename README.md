@@ -1,35 +1,19 @@
-# Prompt Firewall MVP - CloudMatos AI Security Engineer Take-Home Test
+# Prompt Firewall - AI Security Platform
 
-A comprehensive AI security firewall that detects PII/PHI and prompt injection attempts in real-time, with multi-tenant support and comprehensive audit logging.
+A comprehensive AI security system that protects Large Language Model (LLM) applications from prompt injection attacks and prevents sensitive data exposure in real-time. Built with multi-tenant support, comprehensive audit logging, and an intuitive admin console.
 
 ## 🚀 Features
 
-- **Multi-Tenant Architecture**: Isolated data and configurations per tenant
-- **PII/PHI Detection**: Advanced pattern matching for emails, SSNs, phone numbers, credit cards
-- **Prompt Injection Detection**: Heuristic and OpenAI-based detection methods
-- **Policy Engine**: Configurable rules with versioning and priority management
-- **Real-time Processing**: Fast API responses with comprehensive risk analysis
-- **Audit Logging**: Complete audit trail for compliance and monitoring
-- **Admin Console**: Web-based interface for management and monitoring
+- **Multi-Tenant Architecture**: Complete data isolation and tenant-specific configurations
+- **Real-Time PII/PHI Detection**: Advanced pattern matching for emails, SSNs, phone numbers, credit cards, IP addresses, and more
+- **Prompt Injection Detection**: Multiple detection methods including heuristic analysis and AI-powered detection
+- **Flexible Policy Engine**: Configure custom rules with versioning and priority management
+- **Fast API Processing**: High-performance real-time analysis with comprehensive risk scoring
+- **Complete Audit Trail**: Full logging for compliance and security monitoring
+- **Admin Dashboard**: Web-based interface for comprehensive management and monitoring
 - **Python SDK**: Easy integration with existing applications
-- **Serverless Deployment**: GCP Cloud Run with Firestore backend
-
-## 📋 Requirements Met
-
-### ✅ Core Requirements
-- [x] User-facing demo UI
-- [x] Admin console with authentication
-- [x] Core firewall engine with PII/injection detection
-- [x] API Gateway with RESTful endpoints
-- [x] Python SDK with integration examples
-- [x] Serverless cloud setup (GCP Cloud Run + Firestore)
-- [x] Comprehensive logging and audit trail
-
-### ✅ Bonus Features (+10 points)
-- [x] Multi-tenant handling with isolated data
-- [x] Policy versioning system
-- [x] Anomaly scoring algorithms
-- [x] Comprehensive statistics and monitoring
+- **Serverless Architecture**: Scalable deployment on GCP Cloud Run with Firestore backend
+- **Dark Mode Support**: Modern UI with automatic theme switching
 
 ## 🏗️ Architecture
 
@@ -69,70 +53,56 @@ A comprehensive AI security firewall that detects PII/PHI and prompt injection a
 ## 🛠️ Tech Stack
 
 ### Backend
-- **FastAPI**: Modern, fast web framework for building APIs
-- **Google Cloud Firestore**: NoSQL database for multi-tenant data
+- **FastAPI**: High-performance Python web framework
+- **Google Cloud Firestore**: Scalable NoSQL database
 - **Google Cloud Run**: Serverless container platform
-- **Python 3.11**: Core runtime environment
+- **Python 3.11+**: Modern Python runtime
 
 ### Frontend
 - **Next.js 14**: React framework with App Router
-- **Tailwind CSS**: Utility-first CSS framework
-- **shadcn/ui**: Modern UI components
+- **Tailwind CSS**: Utility-first styling
+- **NextAuth.js**: Authentication system
+- **React Hot Toast**: User notifications
 
-### AI/ML
-- **Custom PII Detection**: Regex-based pattern matching
-- **Heuristic Injection Detection**: Keyword and pattern analysis
-- **OpenAI Integration**: GPT-4 based injection detection (optional)
+### AI/ML Security
+- **Custom PII Detection**: Regex-based pattern matching for sensitive data
+- **Heuristic Analysis**: Pattern-based injection detection
+- **OpenAI Integration**: Optional GPT-4 powered detection
+- **Anomaly Scoring**: Advanced risk assessment algorithms
 
 ### Infrastructure
-- **Terraform**: Infrastructure as Code
 - **Docker**: Containerization
-- **GitHub Actions**: CI/CD pipeline
+- **GitHub Actions**: CI/CD automation
+- **Firestore**: Managed database
+- **Cloud Run**: Auto-scaling serverless platform
 
 ## 📁 Project Structure
 
 ```
 prompt-firewall/
-├── backend/                    # FastAPI backend
+├── backend/                    # FastAPI Backend
 │   ├── src/
-│   │   ├── main.py           # FastAPI application
+│   │   ├── api/               # API endpoints
+│   │   ├── common/            # Shared utilities
 │   │   ├── firewall/         # Detection engine
-│   │   │   ├── detector.py   # Main detector class
-│   │   │   ├── rules.py      # Rules engine
-│   │   │   └── injection_detection.py  # Provided detection code
-│   │   ├── store/            # Data access layer
-│   │   │   ├── base.py       # Abstract store interface
-│   │   │   └── firestore/    # Firestore implementations
-│   │   │       ├── tenants.py
-│   │   │       ├── prompts.py
-│   │   │       ├── rules.py
-│   │   │       └── logs.py
-│   │   ├── models/           # Pydantic models
-│   │   │   └── schemas.py
-│   │   ├── utils/            # Utilities
-│   │   │   └── auth.py       # Authentication
-│   │   └── tests/            # Test suite
-│   ├── requirements.txt       # Python dependencies
-│   ├── Dockerfile            # Container definition
-│   └── config.env.example    # Environment configuration
-├── frontend/                  # Next.js frontend
-│   ├── pages/                # Page components
-│   ├── components/           # Reusable components
-│   └── styles/               # CSS styles
-├── sdk/                      # Python SDK
+│   │   ├── models/            # Data models
+│   │   ├── store/             # Data layer
+│   │   └── main.py            # Application entry
+│   ├── requirements.txt       # Dependencies
+│   ├── Dockerfile             # Container config
+│   └── README.md              # Backend docs
+│
+├── frontend/                   # Next.js Frontend
+│   ├── pages/                 # Page routes
+│   ├── components/            # React components
+│   ├── lib/                   # Utilities (session, API)
+│   └── styles/                # CSS styles
+│
+├── sdk/                        # Python SDK
 │   ├── prompt_firewall/
-│   │   ├── client.py         # SDK implementation
-│   │   └── __init__.py
-│   ├── setup.py              # Package configuration
-│   └── README.md             # SDK documentation
-├── terraform/                # Infrastructure as Code
-│   ├── main.tf               # GCP resources
-│   ├── variables.tf          # Variables
-│   └── outputs.tf            # Outputs
-└── docs/                     # Documentation
-    ├── architecture.pdf      # Architecture diagram
-    ├── threat_model.pdf      # Threat model
-    └── README.md             # This file
+│   └── setup.py
+│
+└── README.md                   # This file
 ```
 
 ## 🚀 Quick Start
@@ -144,7 +114,7 @@ prompt-firewall/
 - Google Cloud SDK
 - Docker (optional)
 
-### 1. Backend Setup
+### Backend Setup
 
 ```bash
 cd backend
@@ -160,7 +130,7 @@ cp config.env.example .env
 uvicorn src.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-### 2. Frontend Setup
+### Frontend Setup
 
 ```bash
 cd frontend
@@ -172,21 +142,22 @@ npm install
 npm run dev
 ```
 
-### 3. SDK Usage
+### SDK Usage
 
-```bash
-cd sdk
-
-# Install SDK
-pip install -e .
-
-# Use in your application
-python -c "
+```python
 from prompt_firewall import PromptFirewallSDK
-sdk = PromptFirewallSDK('http://localhost:8000', 'api-key', 'tenant-id')
-result = sdk.query('My email is test@example.com')
-print(f'Decision: {result[\"decision\"]}')
-"
+
+# Initialize
+sdk = PromptFirewallSDK(
+    api_url='http://localhost:8000',
+    api_key='your-api-key',
+    tenant_id='your-tenant-id'
+)
+
+# Process prompt
+result = sdk.query("Contact me at john@example.com")
+print(f"Decision: {result['decision']}")
+print(f"Risks: {result['risks']}")
 ```
 
 ## 🔧 Configuration
@@ -199,11 +170,11 @@ GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json
 GOOGLE_CLOUD_PROJECT=your-project-id
 
 # OpenAI (optional)
-OPENAI_API_KEY=your-openai-key
+OPENAI_API_KEY=your-key
 OPENAI_MODEL=gpt-4
 
 # Security
-JWT_SECRET=your-secret-key
+ENCRYPTION_KEY=your-fernet-key
 CORS_ORIGINS=["http://localhost:3000"]
 
 # Features
@@ -211,179 +182,122 @@ ENABLE_OPENAI_DETECTION=false
 ENABLE_RATE_LIMITING=true
 ```
 
-### Firestore Security Rules
-
-```javascript
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    match /tenants/{tenantId} {
-      allow read, write: if request.auth != null && 
-        request.auth.token.tenant_id == tenantId;
-      match /{document=**} {
-        allow read, write: if request.auth != null && 
-          request.auth.token.tenant_id == tenantId;
-      }
-    }
-  }
-}
-```
-
 ## 📊 API Endpoints
 
 ### Core Endpoints
 
 - `POST /v1/tenants` - Create new tenant
+- `POST /v1/tenants/login` - Tenant authentication
 - `POST /v1/query` - Process prompt through firewall
 - `GET /v1/logs` - Retrieve audit logs
-- `GET /v1/prompts` - Get prompt history
+- `GET /v1/prompts` - Get prompt history with filtering
 - `GET /v1/rules` - Manage detection rules
 
-### Admin Endpoints
+### Authentication
 
-- `GET /v1/admin/tenants` - List all tenants
-- `GET /v1/stats` - Comprehensive statistics
-- `GET /health` - Health check
-
-### SDK Integration
-
-```python
-from prompt_firewall import PromptFirewallSDK
-
-# Initialize
-sdk = PromptFirewallSDK(api_url, api_key, tenant_id)
-
-# Process prompt
-result = sdk.query("Contact me at john@example.com")
-print(f"Decision: {result['decision']}")
-print(f"Risks: {result['risks']}")
-
-# Manage rules
-rule = sdk.create_rule(
-    rule_type="PII_EMAIL",
-    pattern=r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}",
-    action="redact",
-    severity="high"
-)
-
-# Get statistics
-stats = sdk.get_stats()
-print(f"Total prompts: {stats['prompt_stats']['total_prompts']}")
+All endpoints require Bearer token authentication:
+```
+Authorization: Bearer <tenant_id>:<api_key>
 ```
 
-## 🧪 Testing
+## 🎯 Key Features
 
-### Run Tests
+### Session Management
+- **1-Hour Timeout**: Automatic session expiration
+- **Secure Storage**: Encrypted credentials
+- **Auto-Logout**: Session validation on page access
 
-```bash
-cd backend
-pytest tests/ -v --cov=src
-```
+### Dark Mode
+- **System-Wide**: Toggle available in navigation
+- **Persistent**: Saves user preference
+- **Smooth Transitions**: Seamless theme switching
 
-### Test Scenarios Covered
+### Advanced Filtering
+- Filter prompts by risk type (PII, PCI, PHI, INJECTION)
+- Filter by decision (block, redact, warn, allow)
+- Date range filtering
+- Real-time search
 
-- ✅ Valid inputs (normal questions)
-- ✅ PII/PHI inputs (emails, SSNs, phone numbers)
-- ✅ Prompt injection attempts
-- ✅ Secret exfiltration attempts
-- ✅ Large but clean prompts (scalability)
-- ✅ Multi-tenant isolation
-- ✅ Rule management
-- ✅ Authentication and authorization
+## 🧪 Use Cases
+
+### PII Detection
+- Email addresses
+- Social Security Numbers
+- Phone numbers
+- Credit card numbers
+- IP addresses
+- URLs
+- Medical records
+
+### Prompt Injection Prevention
+- Instruction manipulation attempts
+- Role-playing attacks
+- Context injection
+- Jailbreak attempts
+- Data exfiltration
 
 ## 🚀 Deployment
 
-### GCP Cloud Run
+### Docker
 
 ```bash
-# Build and deploy
+# Build image
+docker build -t prompt-firewall .
+
+# Run container
+docker run -p 8000:8000 prompt-firewall
+```
+
+### Cloud Run
+
+```bash
 gcloud builds submit --tag gcr.io/PROJECT_ID/prompt-firewall
 gcloud run deploy prompt-firewall \
   --image gcr.io/PROJECT_ID/prompt-firewall \
   --platform managed \
-  --region us-central1 \
-  --allow-unauthenticated
+  --region us-central1
 ```
 
-### Terraform
+## 📈 Monitoring
 
-```bash
-cd terraform
-terraform init
-terraform plan
-terraform apply
-```
-
-## 📈 Monitoring & Observability
-
-### Metrics
-
+### Metrics Tracked
 - API response times
 - Detection accuracy rates
 - False positive/negative rates
 - Tenant usage statistics
-- Error rates and types
+- Error rates
 
 ### Logging
-
 - Structured JSON logs
 - Complete audit trail
 - Security event tracking
 - Performance metrics
 
-### Health Checks
+## 🔒 Security
 
-- Database connectivity
-- External API availability
-- Service dependencies
-- Resource utilization
-
-## 🔒 Security Features
-
-### Authentication & Authorization
-
-- JWT-based authentication
-- API key validation
-- Tenant isolation
-- Role-based access control
-
-### Data Protection
-
-- Encryption at rest and in transit
-- PII detection and redaction
-- Secure API key management
-- Audit logging
-
-### Threat Detection
-
-- Prompt injection detection
-- PII/PHI pattern matching
-- Anomaly scoring
-- Custom rule support
+### Features
+- API key encryption
+- bcrypt password hashing
+- Tenant data isolation
+- Rate limiting
+- CORS protection
+- Input validation
+- Error sanitization
 
 ## 💰 Cost Estimation
 
-### Monthly Costs (GCP)
-
-- **Cloud Run**: $10-20 (moderate traffic)
-- **Firestore**: $5-15 (based on reads/writes)
-- **Cloud Storage**: $2-5 (logs and exports)
-- **Cloud Monitoring**: $2-5 (metrics and alerts)
-- **Total**: ~$20-45/month
-
-### Optimization Strategies
-
-- Efficient caching
-- Batch operations
-- Resource auto-scaling
-- Cost monitoring alerts
+**Monthly Costs (GCP)**
+- Cloud Run: $10-20
+- Firestore: $5-15
+- Cloud Storage: $2-5
+- Monitoring: $2-5
+- **Total: ~$20-45/month**
 
 ## 📚 Documentation
 
-- [API Documentation](http://localhost:8000/docs) - Interactive Swagger UI
-- [SDK Documentation](sdk/README.md) - Python SDK guide
-- [Architecture Diagram](docs/architecture.pdf) - System design
-- [Threat Model](docs/threat_model.pdf) - Security analysis
+- [Backend Architecture](backend/README_BACKEND_ARCHITECTURE.md)
+- [API Documentation](http://localhost:8000/docs) - Swagger UI
+- [SDK Documentation](sdk/README.md)
 
 ## 🤝 Contributing
 
@@ -395,16 +309,8 @@ terraform apply
 
 ## 📄 License
 
-MIT License - see [LICENSE](LICENSE) file for details.
-
-## 🆘 Support
-
-- **Issues**: GitHub Issues
-- **Documentation**: [docs/](docs/)
-- **Email**: support@cloudmatos.com
+MIT License
 
 ---
 
-**Built for CloudMatos AI Security Engineer Take-Home Test**
-
-*Demonstrating expertise in cybersecurity, AI security, cloud architecture, full-stack development, and serverless deployment.*
+**An enterprise-grade AI security platform protecting LLM applications from vulnerabilities.**
