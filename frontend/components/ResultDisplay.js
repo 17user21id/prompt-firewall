@@ -70,7 +70,7 @@ export default function ResultDisplay({ result }) {
       )}
 
       {/* Anomaly Score */}
-      {result.anomaly_score && (
+      {typeof result.anomaly_score === 'number' && (
         <div className="card">
           <h4 className="font-medium text-gray-700 mb-3">Risk Assessment:</h4>
           <div className="space-y-3">

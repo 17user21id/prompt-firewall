@@ -135,6 +135,24 @@ class DetectionPatternRegistry:
             "Command-based injection attempt"
         ),
         DetectionPattern(
+            "execute_command",
+            r"\b(execute|run)\s+(?:this\s+)?(command|script)\b.*",
+            RiskCategory.PROMPT_INJECTION, "high", "block", 0.9,
+            "Execution request for commands or scripts"
+        ),
+        DetectionPattern(
+            "html_script_tag",
+            r"<\s*script\b[\s\S]*?<\s*/\s*script\s*>",
+            RiskCategory.PROMPT_INJECTION, "critical", "block", 0.95,
+            "Embedded HTML script tag detected"
+        ),
+        DetectionPattern(
+            "secret_exfil_simple",
+            r"(what\s+is\s+your|what[\s'’]*s\s+(?:the|your)|reveal|show|tell|provide|give|share|send|display|output).*?(api\s*key|password|secret|credentials|token|environment\s+variables|jwt|aws|oauth|access\s*key|x-api-key|encryption\s+key|connection\s+string|database\s+connection\s+string)",
+            RiskCategory.PROMPT_INJECTION, "critical", "block", 0.96,
+            "Generic secret exfiltration request"
+        ),
+        DetectionPattern(
             "conditional_injection",
             r"(if i say|trick: if|if|please).*(ignore|forget|disregard|bypass)",
             RiskCategory.PROMPT_INJECTION, "critical", "block", 0.9,
@@ -160,7 +178,7 @@ class DetectionPatternRegistry:
         ),
         DetectionPattern(
             "password_assignment",
-            r"\b(password|passcode)\s*(?:is|=)\s*['\"]?[A-Za-z0-9!@#$%^&*._-]{6,}['\"]?",
+            r"\b(password|passcode)\s*(?:is|=)\s*['\"]?[A-Za-z0-9!@#$%^&*._-]{3,}['\"]?",
             RiskCategory.PROMPT_INJECTION, "high", "block", 0.95,
             "Direct password assignment detected"
         ),
@@ -183,13 +201,19 @@ class DetectionPatternRegistry:
         DetectionPattern(
             "ssn",
             r"\b\d{3}-?\d{2}-?\d{4}\b",
-            RiskCategory.PII, "critical", "block", 0.95,
+            RiskCategory.PII, "critical", "redact", 0.95,
             "Social Security Number detected"
+        ),
+        DetectionPattern(
+            "ssn_spaces",
+            r"\b\d{3}[-\s]?\d{2}[-\s]?\d{4}\b",
+            RiskCategory.PII, "critical", "redact", 0.95,
+            "Social Security Number with spaces/dashes detected"
         ),
         DetectionPattern(
             "ssn_no_dashes",
             r"\b(?!000|666|9\d{2})(\d{3})(?!00)(\d{2})(\d{4})\b",
-            RiskCategory.PII, "critical", "block", 0.85,
+            RiskCategory.PII, "critical", "redact", 0.85,
             "Potential SSN detected (9 digits without dashes)"
         ),
         DetectionPattern(
@@ -209,6 +233,12 @@ class DetectionPatternRegistry:
             r"\bAddress\s*:?\s*\d+\s+[A-Za-z\s]+(?:Street|St|Avenue|Ave|Road|Rd|Boulevard|Blvd|Drive|Dr|Lane|Ln|Way|Court|Ct),\s+[A-Za-z\s]+,\s+[A-Z]{2}\s+\d{5}\b",
             RiskCategory.PII, "high", "redact", 0.9,
             "Physical address detected with full format"
+        ),
+        DetectionPattern(
+            "address_generic",
+            r"\b\d+\s+[A-Za-z0-9\s]+,\s*[A-Za-z\s]+,\s*[A-Z]{2}\s+\d{5}\b",
+            RiskCategory.PII, "high", "redact", 0.9,
+            "Generic US address detected"
         ),
         DetectionPattern(
             "simple_address",
@@ -237,13 +267,19 @@ class DetectionPatternRegistry:
         DetectionPattern(
             "passport",
             r"\b[Pp]assport\s+[Nn]umber\s*:?\s*[A-Z0-9]{8,}\b|\b[A-Z]{2}\s*\d{7,}\b",
-            RiskCategory.PII, "critical", "block", 0.95,
+            RiskCategory.PII, "critical", "redact", 0.95,
             "Passport number detected"
+        ),
+        DetectionPattern(
+            "api_key_assignment",
+            r"\bapi\s*key\s*(?:is|=)\s*\S+",
+            RiskCategory.PII, "critical", "redact", 0.95,
+            "API key literal assignment detected"
         ),
         DetectionPattern(
             "driver_license",
             r"\b[Dd]river['\s]?[Ss]?['\s]?[Ll]icense\s*:?\s*DL[-]?\d{8,}\b|DL[-]?\d{8,}",
-            RiskCategory.PII, "critical", "block", 0.95,
+            RiskCategory.PII, "critical", "redact", 0.95,
             "Driver's license detected"
         ),
         DetectionPattern(
@@ -255,7 +291,7 @@ class DetectionPatternRegistry:
         DetectionPattern(
             "ssn_number",
             r"SSN\s*:?\s*\d{3}-?\d{2}-?\d{4}",
-            RiskCategory.PII, "critical", "block", 0.95,
+            RiskCategory.PII, "critical", "redact", 0.95,
             "SSN number detected"
         ),
     ]
@@ -277,7 +313,7 @@ class DetectionPatternRegistry:
         DetectionPattern(
             "health_data",
             r"\b(?:cholesterol|blood pressure|glucose|BP|HBA1C|level).*?\d+.*?(?:mg/dL|mmHg|mg/dl)\b",
-            RiskCategory.PHI, "critical", "block", 0.9,
+            RiskCategory.PHI, "critical", "redact", 0.9,
             "Health measurement data detected"
         ),
         DetectionPattern(
@@ -313,14 +349,20 @@ class DetectionPatternRegistry:
         DetectionPattern(
             "diagnosis_date",
             r"(?:diagnosed|diagnosis).*?(?:on|with).*?\d{4}-\d{2}-\d{2}",
-            RiskCategory.PHI, "critical", "block", 0.9,
+            RiskCategory.PHI, "critical", "redact", 0.9,
             "Diagnosis with date detected"
         ),
         DetectionPattern(
             "medical_card",
             r"\b(?:medical|patient).*?card.*?[Ii][Dd]\s*:?\s*(?:MC-)?[\dA-Z-]{6,}\b",
-            RiskCategory.PHI, "critical", "block", 0.95,
+            RiskCategory.PHI, "critical", "redact", 0.95,
             "Medical card ID detected"
+        ),
+        DetectionPattern(
+            "patient_record_simple",
+            r"\bpatient\s*record\b.*?(blood\s*type|mri|scan|scheduled|appointment)",
+            RiskCategory.PHI, "high", "redact", 0.9,
+            "Patient record context with sensitive medical info detected"
         ),
         DetectionPattern(
             "disease_name_context",
@@ -335,25 +377,25 @@ class DetectionPatternRegistry:
         DetectionPattern(
             "credit_card",
             r"\b(?:\d{4}[-\s]?){3}\d{4}\b",
-            RiskCategory.PCI, "critical", "block", 0.95,
+            RiskCategory.PCI, "critical", "redact", 0.95,
             "Credit card number detected"
         ),
         DetectionPattern(
             "bank_account",
             r"\b[Bb]ank\s+[Aa]ccount\s*:?\s*\d{6,}\b",
-            RiskCategory.PCI, "critical", "block", 0.95,
+            RiskCategory.PCI, "critical", "redact", 0.95,
             "Bank account detected"
         ),
         DetectionPattern(
             "routing_number",
             r"\b[Rr]outing\s*:?\s*(?:0[2-6]\d{6}|0[89]\d{6}|[1-9]\d{8})\b",
-            RiskCategory.PCI, "critical", "block", 0.95,
+            RiskCategory.PCI, "critical", "redact", 0.95,
             "Bank routing number detected"
         ),
         DetectionPattern(
             "cvv",
             r"\b(?:cvv|cvc|security code).*?\d{3,4}\b",
-            RiskCategory.PCI, "critical", "block", 0.95,
+            RiskCategory.PCI, "critical", "redact", 0.95,
             "CVV/CVC security code detected"
         ),
         DetectionPattern(
@@ -365,7 +407,7 @@ class DetectionPatternRegistry:
         DetectionPattern(
             "bank_account_with_routing",
             r"\b[Bb]ank\s+[Aa]ccount\s*:?\s*\d{6,}\s*,\s*[Rr]outing\s+\d{9}\b",
-            RiskCategory.PCI, "critical", "block", 0.95,
+            RiskCategory.PCI, "critical", "redact", 0.95,
             "Bank account with routing detected"
         ),
     ]

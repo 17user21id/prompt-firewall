@@ -10,7 +10,8 @@ import re
 from ..common.firewall_constants import (
     FirewallConstants, 
     SeverityLevel, 
-    ActionType
+    ActionType,
+    RiskCategoryType,
 )
 
 class FirewallRules:
@@ -360,110 +361,75 @@ class FirewallRules:
         return stats
 
     def _generate_structured_reason(self, action: str, risks: List[Dict]) -> str:
-        """Generate a user-friendly structured reason from detected risks."""
+        """Generate a concise, category-only reason; avoid leaking sensitive data."""
         if not risks:
             return "No risks detected"
         
         if action == ActionType.ALLOW.value:
             return "Prompt processed successfully - no risks detected"
         
-        # Group risks by category
-        categories = {
-            "PROMPT_INJECTION": {"name": "Prompt Injection", "matches": []},
-            "PII": {"name": "PII (Personally Identifiable Information)", "matches": []},
-            "PHI": {"name": "PHI (Protected Health Information)", "matches": []},
-            "PCI": {"name": "PCI (Payment Card Information)", "matches": []},
-            "CUSTOM": {"name": "Custom Pattern", "matches": []},
-            "OTHER": {"name": "Other", "matches": []}
+        # Prefer shared categorization helper
+        try:
+            from ..firewall.detection_patterns import categorize_risk_type
+        except Exception:
+            def categorize_risk_type(rt: str) -> str:
+                up = (rt or "").upper()
+                if "INJECTION" in up:
+                    return RiskCategoryType.PROMPT_INJECTION.value
+                if "PHI" in up:
+                    return RiskCategoryType.PHI.value
+                if "PCI" in up:
+                    return RiskCategoryType.PCI.value
+                return RiskCategoryType.PII.value
+        
+        buckets: Dict[str, Dict[str, Any]] = {
+            RiskCategoryType.PROMPT_INJECTION.value: {"label": "Prompt Injection", "count": 0},
+            RiskCategoryType.PII.value: {"label": "PII", "count": 0},
+            RiskCategoryType.PHI.value: {"label": "PHI", "count": 0},
+            RiskCategoryType.PCI.value: {"label": "PCI", "count": 0},
+            RiskCategoryType.CUSTOM.value: {"label": "Custom", "count": 0},
+            "OTHER": {"label": "Other", "count": 0},
         }
         
-        # First pass: Collect unique matches and their categories
-        seen_matches = {}  # {match: [categories]}
+        # Count by category; track injection subtypes for more specific messaging
+        injection_subtypes: set[str] = set()
+        for r in risks:
+            rtype = r.get("type", "")
+            rsub = (r.get("subtype") or "").strip()
+            cat = r.get("category") or categorize_risk_type(rtype)
+            cat = cat if cat in buckets else "OTHER"
+            buckets[cat]["count"] += 1
+            if cat == RiskCategoryType.PROMPT_INJECTION.value and rsub:
+                injection_subtypes.add(rsub)
         
-        for risk in risks:
-            risk_type = risk.get("type", "")
-            match = risk.get("match", "")
-            
-            if not match or len(match) > 100:
-                continue
-            
-            # Determine category
-            category = "OTHER"
-            if "INJECTION" in risk_type:
-                category = "PROMPT_INJECTION"
-            elif "PHI" in risk_type or risk.get("category") == "PHI":
-                category = "PHI"
-            elif "PCI" in risk_type or risk.get("category") == "PCI":
-                category = "PCI"
-            elif "PII" in risk_type or risk.get("category") == "PII":
-                category = "PII"
-            elif "CUSTOM" in risk_type:
-                category = "CUSTOM"
-            
-            # Normalize match text for comparison (trim and lower)
-            normalized_match = match.strip()
-            
-            # Track matches with their categories
-            if normalized_match not in seen_matches:
-                seen_matches[normalized_match] = []
-            
-            if category not in seen_matches[normalized_match]:
-                seen_matches[normalized_match].append(category)
-        
-        # Second pass: Add unique matches to their primary category (first occurrence)
-        for match, match_categories in seen_matches.items():
-            if match_categories:
-                primary_category = match_categories[0]
-                truncated_match = match[:80] + "..." if len(match) > 80 else match
-                categories[primary_category]["matches"].append(truncated_match)
-        
-        # Check for specific high-severity patterns that need special explanations
-        api_key_injection_detected = False
-        ssn_detected = False
-        
-        for risk in risks:
-            risk_type = risk.get("type", "")
-            subtype = risk.get("subtype", "")
-            
-            if "api_key_extraction" in subtype or ("INJECTION" in risk_type and "key" in risk.get("match", "").lower()):
-                api_key_injection_detected = True
-            if "ssn" in subtype.lower() or "PII_SSN" in risk_type:
-                ssn_detected = True
-        
-        # Build the structured message
+        # Compose single-line generic reason
         action_word = (
-            "blocked" if action == ActionType.BLOCK.value 
-            else "redacted" if action == ActionType.REDACT.value 
-            else "flagged"
+            "blocked" if action == ActionType.BLOCK.value else
+            "redacted" if action == ActionType.REDACT.value else
+            "flagged"
         )
-        
-        # Provide specific explanation for API key extraction attempts
-        if api_key_injection_detected:
-            return f"Prompt has been blocked. Security violation detected: Attempt to extract API keys or sensitive credentials by ignoring system instructions. This is a critical security risk and violates security policies."
-        
-        # Provide specific explanation for SSN detection
-        if ssn_detected and action == ActionType.BLOCK.value:
-            return f"Prompt has been blocked. Sensitive PII detected: Social Security Number (SSN) found in the input. SSNs are not allowed and must be removed before processing."
-        
-        # Collect categories with matches
-        found_categories = []
-        for cat_key, cat_info in categories.items():
-            if cat_info["matches"]:
-                found_categories.append(f"{cat_info['name']} ({len(cat_info['matches'])} match{'es' if len(cat_info['matches']) > 1 else ''})")
-        
-        if found_categories:
-            reason = f"Prompt has been {action_word} due to the following entities: {', '.join(found_categories)}"
-            
-            # Add unique matches for each category (limit to 3 per category)
-            for cat_key, cat_info in categories.items():
-                if cat_info["matches"]:
-                    # Limit matches to avoid huge reasons
-                    display_matches = cat_info["matches"][:3]
-                    matches_str = "; ".join([f'"{m}"' for m in display_matches])
-                    if len(cat_info["matches"]) > 3:
-                        matches_str += f" and {len(cat_info['matches']) - 3} more"
-                    reason += f"\n{cat_info['name']}: {matches_str}"
-        else:
-            reason = f"Prompt has been {action_word}"
-        
-        return reason
+        parts = []
+        if buckets[RiskCategoryType.PROMPT_INJECTION.value]["count"]:
+            parts.append(f"Prompt Injection ({buckets[RiskCategoryType.PROMPT_INJECTION.value]['count']})")
+        if buckets[RiskCategoryType.PII.value]["count"]:
+            parts.append(f"PII ({buckets[RiskCategoryType.PII.value]['count']})")
+        if buckets[RiskCategoryType.PHI.value]["count"]:
+            parts.append(f"PHI ({buckets[RiskCategoryType.PHI.value]['count']})")
+        if buckets[RiskCategoryType.PCI.value]["count"]:
+            parts.append(f"PCI ({buckets[RiskCategoryType.PCI.value]['count']})")
+        if buckets[RiskCategoryType.CUSTOM.value]["count"]:
+            parts.append(f"Custom ({buckets[RiskCategoryType.CUSTOM.value]['count']})")
+        if buckets["OTHER"]["count"]:
+            parts.append(f"Other ({buckets['OTHER']['count']})")
+
+        # If prompt injection is present, prefer a more specific message listing injection types (no matches)
+        inj_count = buckets[RiskCategoryType.PROMPT_INJECTION.value]["count"]
+        if inj_count > 0:
+            types_str = ", ".join(sorted(injection_subtypes)) if injection_subtypes else "unspecified"
+            # Optionally include other category counts generically
+            others = [p for p in parts if not p.lower().startswith("prompt injection")]
+            suffix = f"; also detected: {', '.join(others)}" if others else ""
+            return f"Prompt has been {action_word} due to Prompt Injection — types: {types_str}{suffix}"
+
+        detected = ", ".join(parts) if parts else "no risks"
+        return f"Prompt has been {action_word} due to: {detected}"

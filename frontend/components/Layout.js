@@ -63,7 +63,7 @@ export default function Layout({ children }) {
   const isLoggedIn = session || tenantSession;
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-300">
+    <div className="min-h-screen flex flex-col bg-gray-50 dark:bg-gray-900 transition-colors duration-300">
       {/* Navigation */}
       <nav className="sticky top-0 z-50 bg-primary-600 dark:bg-primary-800 shadow-lg transition-colors duration-300">
         <div className="container">
@@ -106,7 +106,7 @@ export default function Layout({ children }) {
       </nav>
 
       {/* Main Content */}
-      <main className="container py-8 animate-fade-in">
+      <main className="container py-8 animate-fade-in flex-1">
         <div className="transition-opacity duration-300">
           {children}
         </div>

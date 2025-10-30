@@ -446,11 +446,11 @@ class FirewallDetector:
         # For logs, redact all PII/PHI/PCI regardless of action type
         # For normal operation, only redact items marked for redaction
         if redact_all_pii:
-            # Get all PII/PHI/PCI risks regardless of action
+            # Get all PII/PHI/PCI risks regardless of action (do not redact injection-only phrases)
             redaction_risks = [
                 r for r in risks 
-                if any(cat in r.get("category", "").upper() for cat in ["PII", "PHI", "PCI"]) or
-                  any(cat in r.get("type", "").upper() for cat in ["PII", "PHI", "PCI"])
+                if any(cat in (r.get("category", "") or "").upper() for cat in ["PII", "PHI", "PCI"]) or
+                   any(cat in (r.get("type", "") or "").upper() for cat in ["PII", "PHI", "PCI"]) 
             ]
         else:
             # Only redact items marked for redaction

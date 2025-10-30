@@ -89,8 +89,8 @@ def run_detection_and_persist(
     }
     event_type = event_type_mapping.get(rule_result["action"], FirewallConstants.EVENT_PROCESSED)
 
-    # Redact for logs as well
-    redacted_prompt_for_logs = detector.redact_text(prompt, detection_result["risks"], redact_all_pii=True)
+    # Redact for logs as well (reuse same redaction)
+    redacted_prompt_for_logs = redacted_prompt
 
     # Persist log entry
     log_data = {
