@@ -105,3 +105,6 @@ frontend/dist/
 backend/config.env
 backend/service-account-key.json
 
+# Project docs not for version control
+COMMANDS.md
+
