@@ -24,7 +24,7 @@ export default function Login() {
     
     setLoading(true);
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/v1/tenants/login`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/tenants/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -80,7 +80,7 @@ export default function Login() {
     
     setLoading(true);
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/v1/tenants`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/tenants`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

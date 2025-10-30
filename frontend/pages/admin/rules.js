@@ -20,7 +20,7 @@ export default function Rules() {
 
   const fetchRules = async () => {
     try {
-      const res = await fetch('/api/rules', {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/rules`, {
         headers: { 
           'Authorization': `Bearer ${session.user.tenant_id}:${session.user.api_key}` 
         },
@@ -41,7 +41,7 @@ export default function Rules() {
 
   const handleCreateRule = async (ruleData) => {
     try {
-      const res = await fetch('/api/rules', {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/rules`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -65,7 +65,7 @@ export default function Rules() {
 
   const handleUpdateRule = async (ruleData) => {
     try {
-      const res = await fetch(`/api/rules/${editingRule.rule_id}`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/rules/${editingRule.rule_id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -96,7 +96,7 @@ export default function Rules() {
     }
 
     try {
-      const res = await fetch(`/api/rules/${ruleId}`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/rules/${ruleId}`, {
         method: 'DELETE',
         headers: { 
           'Authorization': `Bearer ${session.user.tenant_id}:${session.user.api_key}`

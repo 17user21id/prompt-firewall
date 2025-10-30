@@ -18,7 +18,7 @@ export default function Tenants() {
   const fetchTenants = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/tenants');
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/tenants`);
       
       if (res.ok) {
         const data = await res.json();
@@ -49,7 +49,7 @@ export default function Tenants() {
     }
     
     try {
-      const res = await fetch('/api/tenants', {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/tenants`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json'

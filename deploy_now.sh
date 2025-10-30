@@ -2,79 +2,88 @@
 
 # Prompt Firewall Deployment Script
 # Run this script to deploy both backend and frontend
+# Fixed for Apple Silicon (M1/M2) -> Cloud Run (x86_64) compatibility
 
 set -e  # Exit on error
 
-echo "🚀 Starting deployment..."
+echo "Starting deployment..."
 
-# Step 1: Build backend
+# === CONFIG ===
+PROJECT_ID="prompt-firewall-mvp"
+REGION="us-central1"
+BACKEND_IMAGE="us-central1-docker.pkg.dev/$PROJECT_ID/prompt-firewall-docker/backend:latest"
+FRONTEND_IMAGE="us-central1-docker.pkg.dev/$PROJECT_ID/prompt-firewall-docker/frontend:latest"
+BACKEND_SERVICE="prompt-firewall-backend"
+FRONTEND_SERVICE="prompt-firewall-frontend"
+PLATFORM="linux/amd64"  # Critical: Match Cloud Run architecture
+
+# Step 1: Build & Push Backend
 echo ""
-echo "📦 Step 1: Building backend..."
+echo "Step 1: Building backend ($PLATFORM)..."
 cd backend
-docker build -t us-central1-docker.pkg.dev/prompt-firewall-mvp/prompt-firewall-docker/backend:latest .
+docker build --platform $PLATFORM -t $BACKEND_IMAGE .
 
-# Step 2: Push backend
 echo ""
-echo "📤 Step 2: Pushing backend image..."
-docker push us-central1-docker.pkg.dev/prompt-firewall-mvp/prompt-firewall-docker/backend:latest
+echo "Step 2: Pushing backend image..."
+docker push $BACKEND_IMAGE
 
-# Step 3: Build frontend
+# Step 3: Build & Push Frontend
 echo ""
-echo "🎨 Step 3: Building frontend..."
+echo "Step 3: Building frontend ($PLATFORM)..."
 cd ../frontend
-docker build -t us-central1-docker.pkg.dev/prompt-firewall-mvp/prompt-firewall-docker/frontend:latest .
+docker build --platform $PLATFORM -t $FRONTEND_IMAGE .
 
-# Step 4: Push frontend
 echo ""
-echo "📤 Step 4: Pushing frontend image..."
-docker push us-central1-docker.pkg.dev/prompt-firewall-mvp/prompt-firewall-docker/frontend:latest
+echo "Step 4: Pushing frontend image..."
+docker push $FRONTEND_IMAGE
 
-# Step 5: Deploy backend
+# Step 5: Deploy Backend
 echo ""
-echo "☁️  Step 5: Deploying backend to Cloud Run..."
+echo "Step 5: Deploying backend to Cloud Run..."
 cd ..
-gcloud run deploy prompt-firewall-backend \
-  --image us-central1-docker.pkg.dev/prompt-firewall-mvp/prompt-firewall-docker/backend:latest \
+gcloud run deploy $BACKEND_SERVICE \
+  --image $BACKEND_IMAGE \
   --platform managed \
-  --region us-central1 \
+  --region $REGION \
   --allow-unauthenticated \
   --memory 2Gi \
   --cpu 2 \
   --port 8000 \
-  --set-env-vars="GOOGLE_CLOUD_PROJECT=prompt-firewall-mvp,LOG_LEVEL=INFO"
+  --set-env-vars="GOOGLE_CLOUD_PROJECT=$PROJECT_ID,LOG_LEVEL=INFO" \
+  --quiet
 
-# Step 6: Get backend URL
-BACKEND_URL=$(gcloud run services describe prompt-firewall-backend --region us-central1 --format 'value(status.url)')
+# Get backend URL
+BACKEND_URL=$(gcloud run services describe $BACKEND_SERVICE --region $REGION --format 'value(status.url)')
 echo ""
-echo "✅ Backend deployed at: $BACKEND_URL"
+echo "Backend deployed at: $BACKEND_URL"
 
-# Step 7: Deploy frontend
+# Step 6: Deploy Frontend with Backend URL
 echo ""
-echo "☁️  Step 7: Deploying frontend to Cloud Run..."
-gcloud run deploy prompt-firewall-frontend \
-  --image us-central1-docker.pkg.dev/prompt-firewall-mvp/prompt-firewall-docker/frontend:latest \
+echo "Step 6: Deploying frontend to Cloud Run..."
+gcloud run deploy $FRONTEND_SERVICE \
+  --image $FRONTEND_IMAGE \
   --platform managed \
-  --region us-central1 \
+  --region $REGION \
   --allow-unauthenticated \
   --memory 1Gi \
   --cpu 2 \
-  --set-env-vars="NEXT_PUBLIC_API_URL=$BACKEND_URL"
+  --set-env-vars="NEXT_PUBLIC_API_URL=$BACKEND_URL" \
+  --quiet
 
-# Step 8: Get frontend URL
-FRONTEND_URL=$(gcloud run services describe prompt-firewall-frontend --region us-central1 --format 'value(status.url)')
+# Get frontend URL
+FRONTEND_URL=$(gcloud run services describe $FRONTEND_SERVICE --region $REGION --format 'value(status.url)')
 echo ""
-echo "✅ Frontend deployed at: $FRONTEND_URL"
+echo "Frontend deployed at: $FRONTEND_URL"
 
 # Summary
 echo ""
 echo "=============================================="
-echo "🎉 DEPLOYMENT COMPLETE!"
+echo "DEPLOYMENT COMPLETE!"
 echo "=============================================="
 echo ""
 echo "Your Public URLs:"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "🔗 Backend API:  $BACKEND_URL"
-echo "🌐 Frontend UI:  $FRONTEND_URL"
+echo "Backend API:  $BACKEND_URL"
+echo "Frontend UI:  $FRONTEND_URL"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
-

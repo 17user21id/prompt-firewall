@@ -33,6 +33,14 @@ WORKDIR /app
 ENV NODE_ENV production
 ENV NEXT_TELEMETRY_DISABLED 1
 
+# Install CA certificates so server-side fetch to HTTPS works
+RUN apk add --no-cache ca-certificates && update-ca-certificates
+
+# Ensure Node uses system CA bundle
+ENV SSL_CERT_DIR=/etc/ssl/certs
+ENV SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+ENV NODE_OPTIONS=--use-openssl-ca
+
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 

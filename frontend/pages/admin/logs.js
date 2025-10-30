@@ -17,7 +17,7 @@ export default function Logs() {
 
   const fetchLogs = async () => {
     try {
-      const res = await fetch('/api/logs', {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/logs`, {
         headers: { 
           'Authorization': `Bearer ${session.user.tenant_id}:${session.user.api_key}` 
         },
