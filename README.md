@@ -610,6 +610,11 @@ Response:
 }
 ```
 
+**Request Size Limits:**
+- The `prompt` field now supports large inputs up to 100,000 characters.
+- Requests exceeding this limit will return a 400 error with a validation message.
+- For very large prompts, prefer sending only necessary context to optimize latency and costs.
+
 **Decision Types:**
 - `block`: Request blocked due to high-risk detection
 - `redact`: Sensitive data redacted, sanitized prompt returned
