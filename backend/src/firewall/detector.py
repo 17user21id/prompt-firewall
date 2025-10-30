@@ -50,6 +50,7 @@ class FirewallDetector:
             
             return [{
                 "type": FirewallConstants.RISK_TYPE_INJECTION,
+                "category": RiskCategory.PROMPT_INJECTION.value,
                 "match": prompt[:100] + "..." if len(prompt) > 100 else prompt,
                 "severity": severity,
                 "action": action,
@@ -77,6 +78,7 @@ class FirewallDetector:
                 
                 return [{
                     "type": "INJECTION_OPENAI",
+                    "category": RiskCategory.PROMPT_INJECTION.value,
                     "match": prompt[:100] + "..." if len(prompt) > 100 else prompt,
                     "severity": severity,
                     "action": action,
@@ -120,21 +122,36 @@ class FirewallDetector:
                           "PII_URL", "PII_MEDICAL_RECORD", "INJECTION", "INJECTION_OPENAI", "CUSTOM"]
             if mapped_type not in valid_types:
                 mapped_type = "CUSTOM"
+
+            # Derive category from mapped_type or rule_type
+            def derive_category(t: str) -> str:
+                # Prefer categorization based on the mapped type using shared helper
+                try:
+                    from .detection_patterns import categorize_risk_type
+                    cat = categorize_risk_type(t or "")
+                    if cat:
+                        return cat
+                except Exception:
+                    pass
+                # Fallback to rule type hints if mapping couldn't resolve
+                rt = (rule_type or "").upper()
+                if rt == "PII":
+                    return RiskCategory.PII.value
+                if rt == "PHI":
+                    return RiskCategory.PHI.value
+                if rt == "PCI":
+                    return RiskCategory.PCI.value
+                if rt in ("INJECTION", "PROMPT_INJECTION"):
+                    return RiskCategory.PROMPT_INJECTION.value
+                return ""
             
             try:
                 matches = re.finditer(pattern, prompt, re.IGNORECASE)
                 for match in matches:
-                    # Skip benign standalone 'admin' unless context suggests elevation/bypass
                     mg = match.group()
-                    if mapped_type == "INJECTION" and mg.lower() == "admin":
-                        window = 20
-                        s = max(0, match.start() - window)
-                        e = min(len(prompt), match.end() + window)
-                        ctx = prompt[s:e].lower()
-                        if not re.search(r"become\s+admin|admin\s+(access|privileges|mode|rights)|elevate|sudo|root", ctx):
-                            continue
                     risks.append({
                         "type": mapped_type,
+                        "category": derive_category(mapped_type),
                         "match": mg,
                         "start": match.start(),
                         "end": match.end(),
@@ -399,6 +416,17 @@ class FirewallDetector:
         categories = set()
         for risk in risks:
             category = risk.get("category")
+            if not category:
+                # Fallback: derive from type
+                rtype = (risk.get("type", "") or "").upper()
+                if rtype.startswith("PII_"):
+                    category = RiskCategory.PII.value
+                elif rtype.startswith("INJECTION") or rtype == "INJECTION":
+                    category = RiskCategory.PROMPT_INJECTION.value
+                elif rtype.startswith("PHI_"):
+                    category = RiskCategory.PHI.value
+                elif rtype.startswith("PCI_"):
+                    category = RiskCategory.PCI.value
             if category:
                 categories.add(category)
         return sorted(list(categories))
