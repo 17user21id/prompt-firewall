@@ -31,12 +31,25 @@ export default function TestPage() {
       toast.error(ERROR_MESSAGES.NOT_LOGGED_IN);
       return;
     }
+    if (prompt.length > 100000) {
+      toast.error('Prompt too long. Maximum allowed is 100,000 characters.');
+      return;
+    }
 
     setLoading(true);
     setResult(null);
     
     try {
       const data = await processPrompt(tenantInfo.tenant_id, tenantInfo.api_key, prompt);
+
+      // Handle background processing signal from API (202 Accepted)
+      if (data && data.status === 'processing') {
+        toast.success('Prompt is large; analysis continues in background. Check dashboard soon.');
+        setResult(null);
+        router.push('/dashboard');
+        return;
+      }
+
       setResult(data);
       
       if (data.decision !== 'allow') {
@@ -162,6 +175,7 @@ export default function TestPage() {
 function SimplePromptForm({ onSubmit }) {
   const [prompt, setPrompt] = useState('');
   const [loading, setLoading] = useState(false);
+  const MAX_PROMPT_LEN = 100000;
   const VALIDATION_MESSAGES = {
     PROMPT_REQUIRED: 'Please enter a prompt'
   };
@@ -198,16 +212,29 @@ function SimplePromptForm({ onSubmit }) {
           <textarea
             id="prompt"
             value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
-            className="input-field resize-none"
+            onChange={(e) => {
+              const val = e.target.value;
+              if (val.length > MAX_PROMPT_LEN) {
+                toast.error('Prompt too long. Maximum allowed is 100,000 characters.');
+                return;
+              }
+              setPrompt(val);
+            }}
+            className="input-field resize-none text-base md:text-lg"
             rows={6}
             placeholder="Enter your prompt here... (e.g., 'Contact me at john@example.com for more information')"
             aria-required="true"
             disabled={loading}
+            maxLength={MAX_PROMPT_LEN}
           />
-          <p className="text-sm text-gray-500 mt-1">
-            Try entering prompts with PII (emails, phone numbers, SSNs) or injection attempts to see the firewall in action.
-          </p>
+          <div className="flex items-center justify-between mt-1">
+            <p className="text-sm text-gray-500">
+              Try entering prompts with PII (emails, phone numbers, SSNs) or injection attempts to see the firewall in action.
+            </p>
+            <p className={`text-xs ${prompt.length >= MAX_PROMPT_LEN ? 'text-red-600' : 'text-gray-500'}`}>
+              {prompt.length}/{MAX_PROMPT_LEN}{prompt.length >= MAX_PROMPT_LEN ? ' (maximum reached)' : ''}
+            </p>
+          </div>
         </div>
         
         <div className="flex justify-end">

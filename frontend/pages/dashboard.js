@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
+import { TYPE_LABELS } from '../lib/constants';
 import { useRouter } from 'next/router';
 import toast from 'react-hot-toast';
 import { getSession } from '../lib/session';
@@ -21,6 +22,7 @@ export default function Dashboard() {
     redactedPrompts: 0,
     allowedPrompts: 0
   });
+  const [openGroups, setOpenGroups] = useState({});
 
   useEffect(() => {
     const session = getSession();
@@ -53,6 +55,23 @@ export default function Dashboard() {
       setLoading(false);
     }
   };
+
+  // Group rules by type for the Active Rules section
+  const groupedRules = useMemo(() => {
+    const groups = rules.reduce((acc, rule) => {
+      const key = rule.type || 'OTHER';
+      if (!acc[key]) acc[key] = [];
+      acc[key].push(rule);
+      return acc;
+    }, {});
+    return groups;
+  }, [rules]);
+
+  const toggleGroup = (groupKey) => {
+    setOpenGroups((prev) => ({ ...prev, [groupKey]: !prev[groupKey] }));
+  };
+
+  const getTypeLabel = (type) => TYPE_LABELS[type] || type;
 
   if (loading || !tenantInfo) {
     return <LoadingSpinner message="Loading dashboard..." />;
@@ -96,28 +115,54 @@ export default function Dashboard() {
           <LogTable logs={logs} loading={loading} />
         </div>
 
-        {/* Rules */}
+        {/* Active Rules - Grouped by Type */}
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow transition-all duration-300">
           <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 transition-colors duration-300">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Active Rules</h2>
           </div>
-          <div className="p-6">
-            <div className="space-y-4">
-              {rules.map((rule, index) => (
-                <div key={index} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 transition-all duration-300 hover:shadow-md">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="font-semibold text-gray-900 dark:text-white">{rule.type}</h3>
-                      <p className="text-sm text-gray-600 dark:text-gray-300">{rule.description}</p>
+          <div className="p-6 space-y-4">
+            {Object.keys(groupedRules).length === 0 && (
+              <div className="text-sm text-gray-500 dark:text-gray-400">No active rules found.</div>
+            )}
+
+            {Object.keys(groupedRules).sort().map((groupKey) => {
+              const items = groupedRules[groupKey];
+              const isOpen = openGroups[groupKey] ?? true;
+              return (
+                <div key={groupKey} className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+                  <button
+                    onClick={() => toggleGroup(groupKey)}
+                    className="w-full flex items-center justify-between px-5 py-4 bg-gray-50 dark:bg-gray-900 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                  >
+                    <div className="flex items-center space-x-3">
+                      <span className="text-base font-semibold text-gray-900 dark:text-white">{getTypeLabel(groupKey)}</span>
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200">{items.length}</span>
                     </div>
-                    <div className="flex items-center space-x-4">
-                      <Badge variant={rule.action || 'default'}>{rule.action}</Badge>
-                      <Badge severity={rule.severity}>{rule.severity}</Badge>
+                    <span className={`transform transition-transform text-gray-600 dark:text-gray-300 ${isOpen ? 'rotate-180' : ''}`}>⌄</span>
+                  </button>
+
+                  {isOpen && (
+                    <div className="px-5 pb-5 pt-2">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {items.map((rule) => (
+                          <div key={rule.rule_id} className="border border-gray-200 dark:border-gray-700 rounded-md p-4 hover:shadow-sm transition-shadow">
+                            <div className="flex items-start justify-between">
+                              <div className="min-w-0 pr-4">
+                                <div className="text-sm text-gray-800 dark:text-gray-200 break-all">{rule.description || 'Custom rule'}</div>
+                              </div>
+                              <div className="flex items-center space-x-2 shrink-0">
+                                <Badge variant={rule.action || 'default'}>{rule.action}</Badge>
+                                <Badge severity={rule.severity}>{rule.severity}</Badge>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
-              ))}
-            </div>
+              );
+            })}
           </div>
         </div>
     </div>

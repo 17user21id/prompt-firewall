@@ -100,15 +100,21 @@ class DetectionPatternRegistry:
         ),
         DetectionPattern(
             "jailbreak_attempt",
-            r"(jailbreak|dan|developer mode|admin|root|bypass)",
+            r"(jailbreak|dan|developer mode|root|bypass|become\s+admin|admin\s+(access|privileges|mode))",
             RiskCategory.PROMPT_INJECTION, "high", "block", 0.9,
             "Attempt to jailbreak or bypass safety measures"
         ),
         DetectionPattern(
             "secret_extraction",
-            r"(confidential|secret|private|internal|reveal|show|tell|extract|print).*(password|key|api|credential|secrets|API keys|training data|configuration|environment variables|databases|logs|master key|source code|backend architecture|conversation|metadata)",
+            r"(confidential|secret|private|internal|reveal|show|tell|extract|print|output|provide|give|share|send|display).*(password|key|api|credential|secrets|API keys|API key|training data|configuration|environment variables|databases|master key|source code|backend architecture|conversation|metadata)",
             RiskCategory.PROMPT_INJECTION, "critical", "block", 0.95,
             "Attempt to extract secrets or credentials"
+        ),
+        DetectionPattern(
+            "api_key_extraction",
+            r"(ignore|forget|disregard).*(previous|prior|instructions|rules).*(output|provide|show|tell|give|share|send|display|reveal).*(api|API).*key",
+            RiskCategory.PROMPT_INJECTION, "critical", "block", 0.98,
+            "Attempt to extract API keys by ignoring instructions"
         ),
         DetectionPattern(
             "system_prompt_extraction",
@@ -152,6 +158,12 @@ class DetectionPatternRegistry:
             RiskCategory.PROMPT_INJECTION, "high", "block", 0.85,
             "Attempt to bypass filtering by requesting truth"
         ),
+        DetectionPattern(
+            "password_assignment",
+            r"\b(password|passcode)\s*(?:is|=)\s*['\"]?[A-Za-z0-9!@#$%^&*._-]{6,}['\"]?",
+            RiskCategory.PROMPT_INJECTION, "high", "block", 0.95,
+            "Direct password assignment detected"
+        ),
     ]
 
     # PII (Personally Identifiable Information) Patterns
@@ -173,6 +185,12 @@ class DetectionPatternRegistry:
             r"\b\d{3}-?\d{2}-?\d{4}\b",
             RiskCategory.PII, "critical", "block", 0.95,
             "Social Security Number detected"
+        ),
+        DetectionPattern(
+            "ssn_no_dashes",
+            r"\b(?!000|666|9\d{2})(\d{3})(?!00)(\d{2})(\d{4})\b",
+            RiskCategory.PII, "critical", "block", 0.85,
+            "Potential SSN detected (9 digits without dashes)"
         ),
         DetectionPattern(
             "ip_address",
@@ -400,6 +418,26 @@ class DetectionPatternRegistry:
             matches = pattern.detect(text)
             risks.extend(matches)
         return risks
+
+    @classmethod
+    def export_default_rules(cls) -> List[Dict[str, Any]]:
+        """Export built-in detection patterns as default rule dicts for storage.
+
+        Returns a list of dicts matching the RuleStore.save expected shape
+        (type, pattern, action, severity, description, enabled, version).
+        """
+        default_rules: List[Dict[str, Any]] = []
+        for pattern in cls.get_all_patterns():
+            default_rules.append({
+                "type": pattern.category.value,
+                "pattern": pattern.pattern.pattern,
+                "action": pattern.action,
+                "severity": pattern.severity,
+                "description": pattern.description,
+                "enabled": True,
+                "version": 1,
+            })
+        return default_rules
 
 
 def categorize_risk_type(risk_type: str) -> str:

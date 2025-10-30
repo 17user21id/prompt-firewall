@@ -3,6 +3,7 @@ from datetime import datetime
 from typing import Dict, List, Optional
 import os
 from .base import FirestoreBaseStore as Store
+from ...firewall.detection_patterns import DetectionPatternRegistry
 from .config import FIRESTORE_CREDENTIALS, PROJECT_ID
 
 class RuleStore(Store):
@@ -12,6 +13,20 @@ class RuleStore(Store):
         # Use shared client from base class
         super().__init__()
         self.collection = "tenants"
+
+    def _normalize_rule(self, data: Dict) -> Dict:
+        """Normalize rule fields to API contract (e.g., map 'critical' -> 'high')."""
+        if not data:
+            return data
+        severity = str(data.get("severity", "")).lower()
+        if severity == "critical":
+            data["severity"] = "high"
+        # Normalize timestamps to ISO strings if they are datetime objects
+        if 'created_at' in data and hasattr(data['created_at'], 'isoformat'):
+            data['created_at'] = data['created_at'].isoformat()
+        if 'updated_at' in data and hasattr(data['updated_at'], 'isoformat'):
+            data['updated_at'] = data['updated_at'].isoformat()
+        return data
 
     def create(self, data: Dict) -> str:
         """Create a new rule (required by base class)."""
@@ -53,12 +68,7 @@ class RuleStore(Store):
         
         if doc.exists:
             data = doc.to_dict()
-            # Convert Firestore timestamps to ISO strings
-            if 'created_at' in data:
-                data['created_at'] = data['created_at'].isoformat()
-            if 'updated_at' in data:
-                data['updated_at'] = data['updated_at'].isoformat()
-            return data
+            return self._normalize_rule(data)
         return None
 
     def query(self, filters: Dict = None) -> List[Dict]:
@@ -90,12 +100,7 @@ class RuleStore(Store):
         results = []
         for doc in query.stream():
             data = doc.to_dict()
-            # Convert Firestore timestamps to ISO strings
-            if 'created_at' in data:
-                data['created_at'] = data['created_at'].isoformat()
-            if 'updated_at' in data:
-                data['updated_at'] = data['updated_at'].isoformat()
-            results.append(data)
+            results.append(self._normalize_rule(data))
         
         return results
 
@@ -152,48 +157,7 @@ class RuleStore(Store):
 
     def create_default_rules(self, tenant_id: str) -> List[str]:
         """Create default rules for a new tenant."""
-        default_rules = [
-            {
-                "type": "PII",
-                "pattern": r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}",
-                "action": "redact",
-                "severity": "high",
-                "description": "Email address detection",
-                "enabled": True
-            },
-            {
-                "type": "PII",
-                "pattern": r"\b\d{3}-\d{2}-\d{4}\b",
-                "action": "block",
-                "severity": "high",
-                "description": "SSN detection",
-                "enabled": True
-            },
-            {
-                "type": "PII",
-                "pattern": r"\b\d{3}-\d{3}-\d{4}\b",
-                "action": "redact",
-                "severity": "medium",
-                "description": "Phone number detection",
-                "enabled": True
-            },
-            {
-                "type": "injection",
-                "pattern": r"(ignore|forget|disregard).*(previous|prior|instructions|rules)",
-                "action": "block",
-                "severity": "high",
-                "description": "Prompt injection attempt",
-                "enabled": True
-            },
-            {
-                "type": "injection",
-                "pattern": r"(you are|act as|pretend to be|roleplay)",
-                "action": "warn",
-                "severity": "medium",
-                "description": "Role-playing attempt",
-                "enabled": True
-            }
-        ]
+        default_rules = DetectionPatternRegistry.export_default_rules()
         
         created_rule_ids = []
         for rule_data in default_rules:

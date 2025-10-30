@@ -22,7 +22,6 @@ from ..common.firewall_constants import (
     SeverityLevel,
     ActionType
 )
-from ..common.regex_constants import RegexConstants
 
 class FirewallDetector:
     """Detects PII and prompt injections in user input."""
@@ -31,67 +30,7 @@ class FirewallDetector:
         self.openai_api_key = openai_api_key
         self.openai_model = openai_model
         
-        # Enhanced PII patterns
-        self.pii_patterns = {
-            "email": {
-                "pattern": RegexConstants.EMAIL_PATTERN,
-                "severity": SeverityLevel.HIGH.value,
-                "action": ActionType.REDACT.value
-            },
-            "ssn": {
-                "pattern": RegexConstants.SSN_PATTERN_VARIANT,
-                "severity": SeverityLevel.HIGH.value,
-                "action": ActionType.BLOCK.value
-            },
-            "phone": {
-                "pattern": RegexConstants.PHONE_PATTERN_ENHANCED,
-                "severity": SeverityLevel.MEDIUM.value,
-                "action": ActionType.REDACT.value
-            },
-            "credit_card": {
-                "pattern": RegexConstants.CREDIT_CARD_PATTERN_VARIANT,
-                "severity": SeverityLevel.HIGH.value,
-                "action": ActionType.BLOCK.value
-            },
-            "ip_address": {
-                "pattern": RegexConstants.IP_ADDRESS_PATTERN_ENHANCED,
-                "severity": SeverityLevel.MEDIUM.value,
-                "action": ActionType.WARN.value
-            },
-            "url": {
-                "pattern": RegexConstants.URL_PATTERN,
-                "severity": SeverityLevel.LOW.value,
-                "action": ActionType.WARN.value
-            },
-            "medical_record": {
-                "pattern": RegexConstants.MEDICAL_RECORD_GENERAL_PATTERN,
-                "severity": SeverityLevel.HIGH.value,
-                "action": ActionType.BLOCK.value
-            }
-        }
-
-    def detect_pii(self, prompt: str) -> List[Dict]:
-        """Detect PII in the prompt using enhanced patterns."""
-        risks = []
-        
-        for pii_type, config in self.pii_patterns.items():
-            pattern = config["pattern"]
-            severity = config["severity"]
-            action = config["action"]
-            
-            matches = re.finditer(pattern, prompt, re.IGNORECASE)
-            for match in matches:
-                risks.append({
-                    "type": f"PII_{pii_type.upper()}",
-                    "match": match.group(),
-                    "start": match.start(),
-                    "end": match.end(),
-                    "severity": severity,
-                    "action": action,
-                    "confidence": FirewallConstants.DEFAULT_CONFIDENCE_REGEX
-                })
-        
-        return risks
+        # PII patterns are now sourced from DetectionPatternRegistry exclusively
 
     def detect_injection_heuristic(self, prompt: str) -> List[Dict]:
         """Detect prompt injections using heuristic method."""
@@ -164,6 +103,7 @@ class FirewallDetector:
             # Map common rule types to valid RiskType enum values
             type_mapping = {
                 "PII": "CUSTOM",
+                "PROMPT_INJECTION": "INJECTION",
                 "EMAIL": "PII_EMAIL",
                 "SSN": "PII_SSN",
                 "PHONE": "PII_PHONE",
@@ -184,9 +124,18 @@ class FirewallDetector:
             try:
                 matches = re.finditer(pattern, prompt, re.IGNORECASE)
                 for match in matches:
+                    # Skip benign standalone 'admin' unless context suggests elevation/bypass
+                    mg = match.group()
+                    if mapped_type == "INJECTION" and mg.lower() == "admin":
+                        window = 20
+                        s = max(0, match.start() - window)
+                        e = min(len(prompt), match.end() + window)
+                        ctx = prompt[s:e].lower()
+                        if not re.search(r"become\s+admin|admin\s+(access|privileges|mode|rights)|elevate|sudo|root", ctx):
+                            continue
                     risks.append({
                         "type": mapped_type,
-                        "match": match.group(),
+                        "match": mg,
                         "start": match.start(),
                         "end": match.end(),
                         "severity": severity,
@@ -220,11 +169,16 @@ class FirewallDetector:
         injection_risks = self.detect_injection_openai(prompt) if use_openai else self.detect_injection_heuristic(prompt)
         all_risks.extend(injection_risks)
         
-        # Detect custom patterns
+        # Detect custom patterns (skip patterns that duplicate built-in ones)
         if custom_rules:
-            custom_risks = self.detect_custom_patterns(prompt, custom_rules)
+            builtin_patterns = {p.pattern.pattern for p in DetectionPatternRegistry.get_all_patterns()}
+            filtered_rules = [r for r in custom_rules if r.get("pattern") not in builtin_patterns]
+            custom_risks = self.detect_custom_patterns(prompt, filtered_rules)
             all_risks.extend(custom_risks)
         
+        # Deduplicate and consolidate risks (remove duplicates/overlaps)
+        all_risks = self._deduplicate_risks(all_risks)
+
         # Calculate anomaly score
         anomaly_score = calculate_anomaly_score(prompt, all_risks, 
                                                injection_risks[0].get("score", 0.0) if injection_risks else 0.0)
@@ -257,6 +211,94 @@ class FirewallDetector:
             "medium_severity_risks": len([r for r in all_risks if r.get("severity") == "medium"]),
             "low_severity_risks": len([r for r in all_risks if r.get("severity") == "low"])
         }
+
+    def _deduplicate_risks(self, risks: List[Dict]) -> List[Dict]:
+        """Remove exact duplicates and consolidate overlapping matches.
+
+        Strategy:
+        - Exact dupes by (start,end,match) → keep one with highest confidence, prefer rule_id, highest severity/action.
+        - Overlaps (spans intersect):
+            • Prefer entry with a rule_id over none.
+            • If both have rule_id or none, prefer higher confidence.
+            • If confidence ties, prefer higher severity (high>medium>low).
+            • If still tie, prefer narrower span (shorter length) to avoid capturing context like "is 123" around core entity.
+        """
+        if not risks:
+            return []
+
+        def action_priority(a: str) -> int:
+            order = {"block": 4, "redact": 3, "warn": 2, "allow": 1}
+            return order.get((a or "").lower(), 0)
+
+        def severity_priority(s: str) -> int:
+            order = {"high": 3, "medium": 2, "low": 1}
+            # Map 'critical' to 'high'
+            return order.get(("high" if (s or "").lower() == "critical" else (s or "").lower()), 0)
+
+        # Step 1: group exact span+match duplicates
+        exact_groups = {}
+        for r in risks:
+            key = (r.get("start"), r.get("end"), r.get("match", ""))
+            lst = exact_groups.setdefault(key, [])
+            lst.append(r)
+
+        consolidated: List[Dict] = []
+        for _, group in exact_groups.items():
+            if len(group) == 1:
+                consolidated.append(group[0])
+                continue
+            # pick best by rule_id presence, confidence, severity, action
+            best = None
+            for r in group:
+                if best is None:
+                    best = r
+                    continue
+                def better(a, b):
+                    # prefer rule_id present
+                    a_has = bool(a.get("rule_id"))
+                    b_has = bool(b.get("rule_id"))
+                    if a_has != b_has:
+                        return a_has
+                    # higher confidence
+                    if (a.get("confidence", 0) or 0) != (b.get("confidence", 0) or 0):
+                        return (a.get("confidence", 0) or 0) > (b.get("confidence", 0) or 0)
+                    # higher severity
+                    sa = severity_priority(a.get("severity"))
+                    sb = severity_priority(b.get("severity"))
+                    if sa != sb:
+                        return sa > sb
+                    # stronger action
+                    return action_priority(a.get("action")) > action_priority(b.get("action"))
+                best = a if (a:=r) and better(a, best) else best
+            consolidated.append(best)
+
+        # Step 2: handle overlaps across consolidated entries
+        consolidated.sort(key=lambda r: (r.get("start", 0), r.get("end", 0)))
+        result: List[Dict] = []
+        for r in consolidated:
+            keep = True
+            for i, existing in enumerate(result):
+                s1, e1 = r.get("start", -1), r.get("end", -1)
+                s2, e2 = existing.get("start", -1), existing.get("end", -1)
+                # overlap if ranges intersect
+                if s1 <= e2 and s2 <= e1:
+                    # decide which to keep
+                    def score(x: Dict) -> tuple:
+                        return (
+                            bool(x.get("rule_id")),
+                            x.get("confidence", 0) or 0,
+                            severity_priority(x.get("severity")),
+                            action_priority(x.get("action")),
+                            -((x.get("end", 0) or 0) - (x.get("start", 0) or 0))  # prefer shorter span
+                        )
+                    if score(r) > score(existing):
+                        result[i] = r
+                    keep = False  # either replaced or existing better; do not append another overlapping
+                    break
+            if keep:
+                result.append(r)
+
+        return result
     
     def _categorize_risks(self, risks: List[Dict]) -> Dict[str, Any]:
         """Categorize risks by main category"""
@@ -361,13 +403,35 @@ class FirewallDetector:
                 categories.add(category)
         return sorted(list(categories))
 
-    def redact_text(self, text: str, risks: List[Dict]) -> str:
-        """Redact sensitive information from text."""
+    def redact_text(self, text: str, risks: List[Dict], redact_all_pii: bool = False) -> str:
+        """
+        Redact sensitive information from text.
+        
+        Args:
+            text: The text to redact
+            risks: List of detected risks
+            redact_all_pii: If True, redact all PII regardless of action type (for logs)
+        """
         if not risks:
             return text
         
+        # For logs, redact all PII/PHI/PCI regardless of action type
+        # For normal operation, only redact items marked for redaction
+        if redact_all_pii:
+            # Get all PII/PHI/PCI risks regardless of action
+            redaction_risks = [
+                r for r in risks 
+                if any(cat in r.get("category", "").upper() for cat in ["PII", "PHI", "PCI"]) or
+                  any(cat in r.get("type", "").upper() for cat in ["PII", "PHI", "PCI"])
+            ]
+        else:
+            # Only redact items marked for redaction
+            redaction_risks = [r for r in risks if r.get("action") == ActionType.REDACT.value]
+        
+        if not redaction_risks:
+            return text
+        
         # Sort risks by position (end to start) to avoid index shifting
-        redaction_risks = [r for r in risks if r.get("action") == ActionType.REDACT.value]
         redaction_risks.sort(key=lambda x: x.get("end", 0), reverse=True)
         
         redacted_text = text

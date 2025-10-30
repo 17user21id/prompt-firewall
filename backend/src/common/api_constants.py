@@ -52,6 +52,9 @@ class ApiConstants:
     
     # Feature Messages
     LOG_EXPORT_COMING_SOON = "Log export feature coming soon"
+    BACKGROUND_PROCESSING_MESSAGE = (
+        "Prompt is large; analysis will continue in the background. Results will appear in the dashboard."
+    )
     
     # Health Check
     HEALTH_STATUS = "healthy"

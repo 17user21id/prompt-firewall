@@ -3,6 +3,7 @@ import toast from 'react-hot-toast';
 import { VALIDATION_MESSAGES } from '../lib/constants';
 
 export default function PromptForm({ onSubmit }) {
+  const MAX_PROMPT_LEN = 100000;
   const [formData, setFormData] = useState({
     tenantName: '',
     password: '',
@@ -15,6 +16,10 @@ export default function PromptForm({ onSubmit }) {
     
     if (!formData.prompt.trim()) {
       toast.error(VALIDATION_MESSAGES.PROMPT_REQUIRED);
+      return;
+    }
+    if (formData.prompt.length > 100000) {
+      toast.error('Prompt too long. Maximum allowed is 100,000 characters.');
       return;
     }
     
@@ -35,6 +40,12 @@ export default function PromptForm({ onSubmit }) {
   };
 
   const handleInputChange = (field, value) => {
+    if (field === 'prompt') {
+      if (value.length > MAX_PROMPT_LEN) {
+        toast.error('Prompt too long. Maximum allowed is 100,000 characters.');
+        return;
+      }
+    }
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
@@ -83,15 +94,21 @@ export default function PromptForm({ onSubmit }) {
             id="prompt"
             value={formData.prompt}
             onChange={(e) => handleInputChange('prompt', e.target.value)}
-            className="input-field resize-none"
+            className="input-field resize-none text-base md:text-lg"
             rows={6}
             placeholder="Enter your prompt here... (e.g., 'Contact me at john@example.com for more information')"
             aria-required="true"
             disabled={loading}
+            maxLength={MAX_PROMPT_LEN}
           />
-          <p className="text-sm text-gray-500 mt-1">
-            Try entering prompts with PII (emails, phone numbers, SSNs) or injection attempts to see the firewall in action.
-          </p>
+          <div className="flex items-center justify-between mt-1">
+            <p className="text-sm text-gray-500">
+              Try entering prompts with PII (emails, phone numbers, SSNs) or injection attempts to see the firewall in action.
+            </p>
+            <p className={`text-xs ${formData.prompt.length >= MAX_PROMPT_LEN ? 'text-red-600' : 'text-gray-500'}`}>
+              {formData.prompt.length}/{MAX_PROMPT_LEN}{formData.prompt.length >= MAX_PROMPT_LEN ? ' (maximum reached)' : ''}
+            </p>
+          </div>
         </div>
         
         <div className="flex justify-end">

@@ -3,7 +3,7 @@ Rules management API endpoints.
 """
 
 from fastapi import APIRouter, HTTPException, Depends
-from typing import List
+from typing import List, Dict
 
 from ..store.firestore.rules import RuleStore
 from ..firewall.rules import FirewallRules
@@ -42,6 +42,46 @@ async def get_rules(
     
     rules = rule_store.query_by_tenant(current_tenant, filters)
     return [RuleResponse(**rule) for rule in rules[:limit]]
+
+@router.get("/rules/grouped", response_model=Dict[str, List[RuleResponse]])
+async def get_rules_grouped(
+    current_tenant: str = Depends(get_current_tenant),
+    rule_type: str = None,
+    action: str = None,
+    severity: str = None,
+    enabled: bool = None,
+    include_disabled: bool = False,
+    limit: int = 100
+):
+    """Get rules for the current tenant grouped by type.
+
+    Defaults to only active rules unless include_disabled is True or enabled filter is explicitly provided.
+    """
+    filters = {}
+    if rule_type:
+        filters[DatabaseConstants.TYPE_FIELD] = rule_type
+    if action:
+        filters[DatabaseConstants.ACTION_FIELD] = action
+    if severity:
+        filters[DatabaseConstants.SEVERITY_FIELD] = severity
+    # If enabled filter not passed, default to active unless include_disabled=True
+    if enabled is not None:
+        filters[DatabaseConstants.ENABLED_FIELD] = enabled
+    elif not include_disabled:
+        filters[DatabaseConstants.ENABLED_FIELD] = True
+
+    rules = rule_store.query_by_tenant(current_tenant, filters)
+
+    grouped: Dict[str, List[RuleResponse]] = {}
+    for rule in rules[:limit]:
+        try:
+            resp = RuleResponse(**rule)
+        except Exception:
+            # Skip invalid records silently from grouped view
+            continue
+        grouped.setdefault(resp.type, []).append(resp)
+
+    return grouped
 
 @router.post("/rules", response_model=RuleResponse)
 async def create_rule(

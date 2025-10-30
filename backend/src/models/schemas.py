@@ -97,7 +97,7 @@ class TenantStats(BaseModel):
 class QueryRequest(BaseModel):
     """Model for query request."""
     tenant_id: str
-    prompt: str = Field(..., min_length=1, max_length=10000)
+    prompt: str = Field(..., min_length=1, max_length=100000)  # Increased to support 100k chars
     user_id: Optional[str] = None
     metadata: Optional[Dict[str, Any]] = {}
 

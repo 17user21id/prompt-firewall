@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import Badge from './common/Badge';
 import { LoadingSpinner } from './common';
 import { copyToClipboard, generateCSV } from '../lib/utils';
-import { VALIDATION_MESSAGES } from '../lib/constants';
+import { VALIDATION_MESSAGES, TYPE_LABELS } from '../lib/constants';
 
 export default function LogTable({ logs = [], loading = false }) {
   const [filters, setFilters] = useState({
@@ -280,7 +280,7 @@ export default function LogTable({ logs = [], loading = false }) {
                           <div className="flex flex-wrap gap-1">
                             {riskCategories.map((cat, i) => (
                               <span key={i} className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300">
-                                {cat}
+                                {TYPE_LABELS[cat] || cat}
                               </span>
                             ))}
                           </div>

@@ -96,6 +96,16 @@ class FirewallRules:
         
         # Generate final reason - structured format
         reason = self._generate_structured_reason(final_action, risks)
+
+        # Deduplicate applied rules (unique by rule_id if present, else by type+pattern)
+        unique_applied = []
+        seen = set()
+        for ar in applied_rules:
+            key = ar.get("rule_id") or (ar.get("type"), ar.get("pattern"))
+            if key in seen:
+                continue
+            seen.add(key)
+            unique_applied.append(ar)
         
         return {
             "action": final_action,
@@ -103,8 +113,8 @@ class FirewallRules:
             "risks": risks,
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "reason": reason,
-            "applied_rules": applied_rules,
-            "total_rules_applied": len(applied_rules)
+            "applied_rules": unique_applied,
+            "total_rules_applied": len(unique_applied)
         }
 
     def _sort_rules_by_priority(self, rules: List[Dict]) -> List[Dict]:
@@ -407,12 +417,33 @@ class FirewallRules:
                 truncated_match = match[:80] + "..." if len(match) > 80 else match
                 categories[primary_category]["matches"].append(truncated_match)
         
+        # Check for specific high-severity patterns that need special explanations
+        api_key_injection_detected = False
+        ssn_detected = False
+        
+        for risk in risks:
+            risk_type = risk.get("type", "")
+            subtype = risk.get("subtype", "")
+            
+            if "api_key_extraction" in subtype or ("INJECTION" in risk_type and "key" in risk.get("match", "").lower()):
+                api_key_injection_detected = True
+            if "ssn" in subtype.lower() or "PII_SSN" in risk_type:
+                ssn_detected = True
+        
         # Build the structured message
         action_word = (
             "blocked" if action == ActionType.BLOCK.value 
             else "redacted" if action == ActionType.REDACT.value 
             else "flagged"
         )
+        
+        # Provide specific explanation for API key extraction attempts
+        if api_key_injection_detected:
+            return f"Prompt has been blocked. Security violation detected: Attempt to extract API keys or sensitive credentials by ignoring system instructions. This is a critical security risk and violates security policies."
+        
+        # Provide specific explanation for SSN detection
+        if ssn_detected and action == ActionType.BLOCK.value:
+            return f"Prompt has been blocked. Sensitive PII detected: Social Security Number (SSN) found in the input. SSNs are not allowed and must be removed before processing."
         
         # Collect categories with matches
         found_categories = []

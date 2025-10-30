@@ -1,5 +1,6 @@
 import { useSession } from 'next-auth/react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
+import { TYPE_LABELS } from '../../lib/constants';
 import RuleEditor from '../../components/RuleEditor';
 import toast from 'react-hot-toast';
 import Link from 'next/link';
@@ -9,6 +10,7 @@ export default function Rules() {
   const [rules, setRules] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editingRule, setEditingRule] = useState(null);
+  const [openGroups, setOpenGroups] = useState({});
 
   useEffect(() => {
     if (session) {
@@ -112,21 +114,7 @@ export default function Rules() {
     }
   };
 
-  const getTypeLabel = (type) => {
-    const typeLabels = {
-      'PII_EMAIL': 'Email Address',
-      'PII_SSN': 'Social Security Number',
-      'PII_PHONE': 'Phone Number',
-      'PII_CREDIT_CARD': 'Credit Card',
-      'PII_IP_ADDRESS': 'IP Address',
-      'PII_URL': 'URL',
-      'PII_MEDICAL_RECORD': 'Medical Record',
-      'INJECTION': 'Prompt Injection',
-      'INJECTION_OPENAI': 'OpenAI Injection',
-      'CUSTOM': 'Custom Pattern'
-    };
-    return typeLabels[type] || type;
-  };
+  const getTypeLabel = (type) => TYPE_LABELS[type] || type;
 
   const getSeverityBadge = (severity) => {
     const severityClasses = {
@@ -141,6 +129,21 @@ export default function Rules() {
         {severity}
       </span>
     );
+  };
+
+  // Group rules by type for UI without changing API
+  const groupedRules = useMemo(() => {
+    const groups = rules.reduce((acc, rule) => {
+      const key = rule.type || 'OTHER';
+      if (!acc[key]) acc[key] = [];
+      acc[key].push(rule);
+      return acc;
+    }, {});
+    return groups;
+  }, [rules]);
+
+  const toggleGroup = (group) => {
+    setOpenGroups((prev) => ({ ...prev, [group]: !prev[group] }));
   };
 
   const getActionBadge = (action) => {
@@ -210,10 +213,10 @@ export default function Rules() {
           />
         </div>
 
-        {/* Rules List */}
+        {/* Active Rules - Grouped by Type */}
         <div className="card">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">Existing Rules</h2>
-          
+          <h2 className="text-xl font-semibold text-gray-900 mb-4">Active Rules</h2>
+
           {rules.length === 0 ? (
             <div className="text-center py-12">
               <div className="text-gray-400 text-6xl mb-4">⚙️</div>
@@ -221,80 +224,79 @@ export default function Rules() {
               <p className="text-gray-600">Create your first rule using the form above.</p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Type
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Pattern
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Action
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Severity
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Status
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Version
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {rules.map((rule) => (
-                    <tr key={rule.rule_id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900">
-                          {getTypeLabel(rule.type)}
+            <div className="space-y-4">
+              {Object.keys(groupedRules).sort().map((groupKey) => {
+                const items = groupedRules[groupKey];
+                const open = openGroups[groupKey] ?? true;
+                return (
+                  <div key={groupKey} className="border border-gray-200 rounded-lg overflow-hidden">
+                    <button
+                      onClick={() => toggleGroup(groupKey)}
+                      className="w-full flex items-center justify-between px-5 py-4 bg-gray-50 hover:bg-gray-100 transition-colors"
+                    >
+                      <div className="flex items-center space-x-3">
+                        <span className="text-lg font-semibold text-gray-900">{getTypeLabel(groupKey)}</span>
+                        <span className="badge badge-neutral">{items.length}</span>
+                      </div>
+                      <span className={`transform transition-transform ${open ? 'rotate-180' : ''}`}>⌄</span>
+                    </button>
+
+                    {open && (
+                      <div className="px-5 pb-5 pt-2 bg-white">
+                        <div className="overflow-x-auto">
+                          <table className="min-w-full divide-y divide-gray-200">
+                            <thead className="bg-gray-50">
+                              <tr>
+                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
+                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
+                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Severity</th>
+                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Version</th>
+                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                              </tr>
+                            </thead>
+                            <tbody className="bg-white divide-y divide-gray-200">
+                              {items.map((rule) => (
+                                <tr key={rule.rule_id} className="hover:bg-gray-50">
+                                  <td className="px-4 py-3 align-top">
+                                    <div className="text-sm text-gray-800">
+                                      {rule.description || 'Custom rule'}
+                                    </div>
+                                  </td>
+                                  <td className="px-4 py-3 whitespace-nowrap">{getActionBadge(rule.action)}</td>
+                                  <td className="px-4 py-3 whitespace-nowrap">{getSeverityBadge(rule.severity)}</td>
+                                  <td className="px-4 py-3 whitespace-nowrap">
+                                    <span className={`badge ${rule.enabled ? 'badge-success' : 'badge-error'}`}>
+                                      {rule.enabled ? 'Enabled' : 'Disabled'}
+                                    </span>
+                                  </td>
+                                  <td className="px-4 py-3 whitespace-nowrap">
+                                    <div className="text-sm text-gray-500">v{rule.version || 1}</div>
+                                  </td>
+                                  <td className="px-4 py-3 whitespace-nowrap text-sm font-medium space-x-3">
+                                    <button
+                                      onClick={() => setEditingRule(rule)}
+                                      className="text-primary-600 hover:text-primary-900 transition-colors duration-200"
+                                    >
+                                      Edit
+                                    </button>
+                                    <button
+                                      onClick={() => handleDeleteRule(rule.rule_id)}
+                                      className="text-red-600 hover:text-red-900 transition-colors duration-200"
+                                    >
+                                      Delete
+                                    </button>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
                         </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="text-sm font-mono text-gray-500 max-w-xs truncate">
-                          {rule.pattern}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        {getActionBadge(rule.action)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        {getSeverityBadge(rule.severity)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`badge ${rule.enabled ? 'badge-success' : 'badge-error'}`}>
-                          {rule.enabled ? 'Enabled' : 'Disabled'}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-500">
-                          v{rule.version || 1}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                        <button
-                          onClick={() => setEditingRule(rule)}
-                          className="text-primary-600 hover:text-primary-900 transition-colors duration-200"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => handleDeleteRule(rule.rule_id)}
-                          className="text-red-600 hover:text-red-900 transition-colors duration-200"
-                        >
-                          Delete
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
